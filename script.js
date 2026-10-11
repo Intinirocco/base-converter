@@ -5,7 +5,7 @@
 const DIGITS = '0123456789ABCDEF';
 const BASE_NAMES = { 2: 'binario', 8: 'ottale', 10: 'decimale', 16: 'esadecimale' };
 const POW2_BITS = { 2: 1, 4: 2, 8: 3, 16: 4 };
-const AUTO_BITS = [4, 8, 16, 32, 64];
+const AUTO_BITS = [8, 16, 32, 64];  // lunghezze standard per il complemento a 2
 const MAX_FRAC = 12;     // cifre dopo la virgola mostrate quando l'espansione non termina
 const EXACT_FRAC = 260;  // oltre questa lunghezza l'espansione è considerata non terminante
 const MINUS = '−';
@@ -96,25 +96,34 @@ function withComma(bits, f) {
   return f ? `${bits.slice(0, -f)},${bits.slice(-f)}` : bits;
 }
 
+// Più piccola lunghezza standard (8, 16, 32, 64, poi multipli di 64) che contiene n bit.
+function stdWidth(n) {
+  return AUTO_BITS.find(w => w >= n) || Math.ceil(n / 64) * 64;
+}
+
 // Numero di bit della parte intera per rappresentare −scaled/2^f in complemento a 2.
 function pickBits(scaled, f, bits) {
   const fits = n => scaled <= 1n << BigInt(n - 1 + f);
   if (bits !== 'auto') return fits(bits) ? bits : null;
   let n = AUTO_BITS.find(fits);
-  if (!n) for (n = 65; !fits(n); n++);
+  if (!n) for (n = 128; !fits(n); n += 64);
   return n;
 }
 
-// Legge una stringa di bit come numero in complemento a 2 (il primo bit è il segno).
+// Legge una stringa di bit come numero in complemento a 2. La parte intera viene prima completata
+// con zeri a sinistra fino alla lunghezza standard, così gli zeri iniziali non cambiano il valore:
+// il segno è il primo bit della parola completa.
 function readTwos(rawInt, rawFrac) {
-  const bits = rawInt + rawFrac;
+  const int = rawInt.padStart(stdWidth(rawInt.length), '0');
+  const bits = int + rawFrac;
   const f = rawFrac.length;
   const u = BigInt('0b' + bits);
   const den = 1n << BigInt(f);
-  if (rawInt[0] !== '1') return { neg: false, num: u, den };
+  const padded = joinParts(int, rawFrac);
+  if (int[0] !== '1') return { neg: false, num: u, den, padded, width: int.length };
   const full = 1n << BigInt(bits.length);
   const str = v => withComma(v.toString(2).padStart(bits.length, '0'), f);
-  return { neg: true, num: full - u, den, inverted: str(full - 1n - u), magnitude: str(full - u) };
+  return { neg: true, num: full - u, den, padded, width: int.length, inverted: str(full - 1n - u), magnitude: str(full - u) };
 }
 
 /* ---------- Passaggi ---------- */
@@ -257,16 +266,18 @@ function solve(raw, from, to, opts = {}) {
     if (p.hasSign) return { error: `In complemento a 2 il segno è dato dal primo bit: togli il ${MINUS}.` };
     const t = readTwos(p.rawInt, p.rawFrac);
     ({ neg, num, den } = t);
-    source = joinParts(p.rawInt, p.rawFrac);
+    const typed = joinParts(p.rawInt, p.rawFrac);
+    const fill = t.padded === typed ? '' : `Il numero si completa a ${t.width} bit${p.rawFrac ? ' di parte intera' : ''} aggiungendo zeri a sinistra: <span class="mono">${t.padded}</span>. `;
+    source = t.padded;
     srcInt = (num / den).toString(2);
     srcFrac = fracToBase(num % den, den, 2, 1000).digits;
     blocks.push({
       title: 'Segno e valore assoluto',
       body: neg
-        ? `<p>Il primo bit è 1, quindi il numero è negativo. Per ricavare il valore assoluto inverti tutti i bit e somma 1${p.rawFrac ? ' all\'ultimo bit dopo la virgola' : ''}.</p>
+        ? `<p>${fill}Il primo bit è 1, quindi il numero è negativo. Per ricavare il valore assoluto inverti tutti i bit e somma 1${p.rawFrac ? ' all\'ultimo bit dopo la virgola' : ''}.</p>
           ${table(['Operazione', 'Bit'], `<tr><td>Numero</td><td class="r">${source}</td></tr><tr><td>Bit invertiti</td><td class="r">${t.inverted}</td></tr><tr><td>+ 1</td><td class="r hl">${t.magnitude}</td></tr>`)}
           <p class="line">Il valore assoluto è <strong class="mono">${joinParts(srcInt, srcFrac)}</strong>: lo si converte e si mette il ${MINUS} davanti al risultato.</p>`
-        : '<p>Il primo bit è 0, quindi il numero è positivo e si converte normalmente.</p>',
+        : `<p>${fill}Il primo bit è 0, quindi il numero è positivo e si converte normalmente.</p>`,
     });
   }
 
@@ -441,7 +452,10 @@ function columnSub(x, y, base, f) {
 // Sottrazione binaria x − y sommando al minuendo il complemento a 1 o a 2 del sottraendo.
 // x e y sono interi scalati con f bit dopo la virgola.
 function complementSub(x, y, f, kind) {
-  const n = Math.max(intToBase(x, 2).length, intToBase(y, 2).length, f + 1);
+  // Si lavora su una lunghezza standard (almeno 8 bit di parte intera), anche se i numeri sono più corti.
+  const F = BigInt(f);
+  const intBits = stdWidth(Math.max((x >> F).toString(2).length, (y >> F).toString(2).length));
+  const n = intBits + f;
   const full = 1n << BigInt(n);
   const bits = v => withComma(v.toString(2).padStart(n, '0'), f);
   const row = (label, v, hl) => `<tr><td>${label}</td><td class="r${hl ? ' hl' : ''}">${bits(v)}</td></tr>`;
@@ -476,7 +490,7 @@ function complementSub(x, y, f, kind) {
     : 'inverti tutti i bit del sottraendo';
   return {
     value: neg ? -mag : mag,
-    body: `<p>Scrivi i due numeri su ${n} bit${f ? ', allineando le virgole' : ''}. Invece di sottrarre, somma al minuendo il complemento a ${kind} del sottraendo: ${intro}.</p>
+    body: `<p>Scrivi i due numeri su ${intBits} bit${f ? ' di parte intera, allineando le virgole' : ''} (aggiungendo zeri a sinistra). Invece di sottrarre, somma al minuendo il complemento a ${kind} del sottraendo: ${intro}.</p>
       ${table(['Operazione', 'Bit'], prep)}
       <p style="margin-top:14px">Somma il minuendo e il complemento:</p>
       ${columnAdd(x, comp, 2, f, n).layout}
@@ -668,7 +682,7 @@ function solveOp(rawA, rawB, base, op) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub };
+  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub, stdWidth };
 }
 
 /* ---------- Interfaccia ---------- */

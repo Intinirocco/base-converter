@@ -80,36 +80,38 @@ Se la parte frazionaria non termina mai, il risultato si ferma a 12 cifre ed è 
 
 ### Numeri negativi e complemento a 2
 
-In binario i numeri negativi sono rappresentati in **complemento a 2**: si scrive il valore assoluto sul numero di bit scelto, si invertono tutti i bit e si somma 1.
+In binario i numeri negativi sono rappresentati in **complemento a 2**: si scrive il valore assoluto su una lunghezza fissa di bit, si invertono tutti i bit e si somma 1.
 
 ```
 −45 su 8 bit:   00101101  →  11010010  →  11010011
 ```
 
-- Quando la base di arrivo è 2 puoi scegliere su quanti bit lavorare (4, 8, 16, 32 oppure automatico).
+- Il sito lavora sempre su lunghezze standard: **8 bit**, oppure 16, 32 o 64 se il numero non ci sta. Quando la base di arrivo è 2 puoi anche fissare tu la lunghezza (8, 16 o 32 bit).
 - Quando la base di partenza è 2, spunta **«Il numero binario è in complemento a 2»** per far leggere il primo bit come segno: così `11010011` vale −45 invece di 211.
+- Un numero binario più corto viene prima completato con zeri a sinistra fino alla lunghezza standard, quindi gli zeri iniziali non cambiano il valore: `11000` e `011000` valgono entrambi 24 (`00011000`), mentre −8 si scrive `11111000`.
+- Nell'allenamento la risposta in complemento a 2 va scritta con tutti i bit indicati nella consegna.
 - Nelle altre basi, e nei risultati della sezione Operazioni, i negativi si scrivono con il segno meno.
 
 ### Sottrazione binaria con i complementi
 
-In base 2 la sottrazione si trasforma in una somma: i due numeri si scrivono sullo stesso numero di bit e al minuendo si somma il complemento del sottraendo. Il sito mostra entrambi i metodi.
+In base 2 la sottrazione si trasforma in una somma: i due numeri si scrivono sullo stesso numero di bit (almeno 8, aggiungendo zeri a sinistra) e al minuendo si somma il complemento del sottraendo. Il sito mostra entrambi i metodi.
 
 **Complemento a 2** — si invertono i bit del sottraendo e si aggiunge 1. Se la somma produce un riporto oltre il bit più a sinistra, lo si scarta e il risultato è positivo:
 
 ```
-1000 − 0011:   0011 → 1100 → 1101      1000 + 1101 = (1)0101   →  101
+00001000 − 00000011:   00000011 → 11111100 → 11111101      00001000 + 11111101 = (1)00000101   →  101
 ```
 
 Se non c'è riporto il risultato è negativo, e il suo valore assoluto è il complemento a 2 della somma:
 
 ```
-0011 − 1000:   1000 → 0111 → 1000      0011 + 1000 = 1011   →  −0101
+00000011 − 00001000:   00001000 → 11110111 → 11111000      00000011 + 11111000 = 11111011   →  −00000101
 ```
 
 **Complemento a 1** — si invertono soltanto i bit del sottraendo. Se c'è il riporto, lo si toglie e lo si somma al risultato (riporto circolare); se non c'è, il risultato è negativo e si invertono i bit della somma:
 
 ```
-1000 − 0011:   0011 → 1100      1000 + 1100 = (1)0100   →  0100 + 1 = 101
+00001000 − 00000011:   00000011 → 11111100      00001000 + 11111100 = (1)00000100   →  00000100 + 1 = 101
 ```
 
 ## Limiti
