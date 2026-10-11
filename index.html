@@ -14,12 +14,13 @@
     <div class="top">
       <header class="masthead">
         <h1>Basi</h1>
-        <p>Converti un numero da una base all'altra e segui ogni passaggio.</p>
+        <p>Converti numeri tra basi diverse, allenati e fai i calcoli nella stessa base, con tutti i passaggi.</p>
       </header>
 
       <div class="tabs" role="tablist" aria-label="Modalità">
         <button class="tab" role="tab" id="tab-convert" aria-controls="panel-convert" aria-selected="true">Converti</button>
         <button class="tab" role="tab" id="tab-train" aria-controls="panel-train" aria-selected="false" tabindex="-1">Allenamento</button>
+        <button class="tab" role="tab" id="tab-ops" aria-controls="panel-ops" aria-selected="false" tabindex="-1">Operazioni</button>
       </div>
     </div>
 
@@ -28,7 +29,7 @@
       <div class="card bar">
         <label class="field wide">
           <span class="label">Numero</span>
-          <input id="c-input" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" placeholder="es. 101101">
+          <input id="c-input" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" placeholder="es. 101101 · −45 · 12,75">
         </label>
         <label class="field">
           <span class="label">Da base</span>
@@ -41,6 +42,24 @@
           <span class="label">A base</span>
           <span class="select"><select id="c-to"></select></span>
         </label>
+        <div id="c-opts" class="opts">
+          <label id="c-signed-wrap" class="check">
+            <input id="c-signed" type="checkbox">
+            <span>Il numero binario è in complemento a 2</span>
+          </label>
+          <label id="c-bits-wrap" class="inline-field" hidden>
+            <span>Complemento a 2 su</span>
+            <span class="select small">
+              <select id="c-bits">
+                <option value="auto">bit automatici</option>
+                <option value="4">4 bit</option>
+                <option value="8">8 bit</option>
+                <option value="16">16 bit</option>
+                <option value="32">32 bit</option>
+              </select>
+            </span>
+          </label>
+        </div>
         <p id="c-error" class="error" role="alert" hidden></p>
       </div>
 
@@ -83,12 +102,23 @@
           <span class="label">Corrette</span>
           <span id="t-score" class="stat-value mono">0 / 0</span>
         </div>
+        <div class="opts">
+          <label class="check">
+            <input id="t-neg" type="checkbox">
+            <span>Numeri negativi</span>
+          </label>
+          <label class="check">
+            <input id="t-frac" type="checkbox">
+            <span>Numeri con la virgola</span>
+          </label>
+        </div>
       </div>
 
       <div class="duo">
         <div class="hero">
           <span class="label" id="t-prompt">Converti in base 10</span>
           <div id="t-number" class="hero-value mono"></div>
+          <p id="t-note" class="hero-note" hidden></p>
         </div>
 
         <form id="t-form" class="card answer" autocomplete="off">
@@ -111,7 +141,50 @@
       </details>
     </section>
 
-    <footer class="foot">Numeri interi non negativi · basi da 2 a 16</footer>
+    <!-- Operazioni -->
+    <section class="panel" id="panel-ops" role="tabpanel" aria-labelledby="tab-ops" hidden>
+      <div class="card bar ops-bar">
+        <label class="field first">
+          <span class="label">Primo numero</span>
+          <input id="o-a" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="es. 1011">
+        </label>
+        <label class="field">
+          <span class="label">Operazione</span>
+          <span class="select">
+            <select id="o-op" class="mono" aria-label="Operazione">
+              <option value="+">+</option>
+              <option value="-">−</option>
+              <option value="*">×</option>
+              <option value="/">÷</option>
+            </select>
+          </span>
+        </label>
+        <label class="field">
+          <span class="label">Secondo numero</span>
+          <input id="o-b" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="es. 110">
+        </label>
+        <label class="field last">
+          <span class="label">Base</span>
+          <span class="select"><select id="o-base"></select></span>
+        </label>
+        <p id="o-error" class="error" role="alert" hidden></p>
+      </div>
+
+      <div class="hero" aria-live="polite">
+        <span class="label">Risultato</span>
+        <div class="hero-row">
+          <output id="o-output" class="hero-value mono">—</output>
+          <button id="o-copy" class="ghost-btn" type="button" hidden>Copia</button>
+        </div>
+      </div>
+
+      <details id="o-steps" class="steps" hidden>
+        <summary>Mostra i passaggi</summary>
+        <div class="steps-body" id="o-steps-body"></div>
+      </details>
+    </section>
+
+    <footer class="foot">Numeri interi e con la virgola, positivi e negativi · basi da 2 a 16</footer>
   </main>
 
   <script src="script.js"></script>
