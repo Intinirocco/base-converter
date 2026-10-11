@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Basi — Convertitore di basi numeriche</title>
+  <meta name="description" content="Converti numeri tra basi diverse (binario, ottale, decimale, esadecimale e tutte le basi da 2 a 16) con i passaggi spiegati, e allenati con esercizi casuali.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b4cca'/%3E%3Ctext x='16' y='22' font-family='Helvetica,Arial,sans-serif' font-weight='700' font-size='18' text-anchor='middle' fill='%23fff'%3Eb%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <div class="top">
+      <header class="masthead">
+        <h1>Basi</h1>
+        <p>Converti un numero da una base all'altra e segui ogni passaggio.</p>
+      </header>
+
+      <div class="tabs" role="tablist" aria-label="Modalità">
+        <button class="tab" role="tab" id="tab-convert" aria-controls="panel-convert" aria-selected="true">Converti</button>
+        <button class="tab" role="tab" id="tab-train" aria-controls="panel-train" aria-selected="false" tabindex="-1">Allenamento</button>
+      </div>
+    </div>
+
+    <!-- Convertitore -->
+    <section class="panel" id="panel-convert" role="tabpanel" aria-labelledby="tab-convert">
+      <div class="card bar">
+        <label class="field wide">
+          <span class="label">Numero</span>
+          <input id="c-input" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" placeholder="es. 101101">
+        </label>
+        <label class="field">
+          <span class="label">Da base</span>
+          <span class="select"><select id="c-from"></select></span>
+        </label>
+        <button id="c-swap" class="icon-btn" type="button" aria-label="Scambia le basi" title="Scambia le basi">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h13M16 3l4 4-4 4M17 17H4M8 13l-4 4 4 4"/></svg>
+        </button>
+        <label class="field">
+          <span class="label">A base</span>
+          <span class="select"><select id="c-to"></select></span>
+        </label>
+        <p id="c-error" class="error" role="alert" hidden></p>
+      </div>
+
+      <div class="hero" aria-live="polite">
+        <span class="label">Risultato</span>
+        <div class="hero-row">
+          <output id="c-output" class="hero-value mono">—</output>
+          <button id="c-copy" class="ghost-btn" type="button" hidden>Copia</button>
+        </div>
+      </div>
+
+      <details id="c-steps" class="steps" hidden>
+        <summary>Mostra i passaggi</summary>
+        <div class="steps-body" id="c-steps-body"></div>
+      </details>
+    </section>
+
+    <!-- Allenamento -->
+    <section class="panel" id="panel-train" role="tabpanel" aria-labelledby="tab-train" hidden>
+      <div class="card bar train-bar">
+        <label class="field">
+          <span class="label">Da base</span>
+          <span class="select"><select id="t-from"></select></span>
+        </label>
+        <label class="field">
+          <span class="label">A base</span>
+          <span class="select"><select id="t-to"></select></span>
+        </label>
+        <label class="field">
+          <span class="label">Difficoltà</span>
+          <span class="select">
+            <select id="t-level">
+              <option value="easy">Facile</option>
+              <option value="medium" selected>Media</option>
+              <option value="hard">Difficile</option>
+            </select>
+          </span>
+        </label>
+        <div class="field stat">
+          <span class="label">Corrette</span>
+          <span id="t-score" class="stat-value mono">0 / 0</span>
+        </div>
+      </div>
+
+      <div class="duo">
+        <div class="hero">
+          <span class="label" id="t-prompt">Converti in base 10</span>
+          <div id="t-number" class="hero-value mono"></div>
+        </div>
+
+        <form id="t-form" class="card answer" autocomplete="off">
+          <label class="field">
+            <span class="label">La tua risposta</span>
+            <input id="t-answer" class="input mono" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="80" placeholder="Scrivi il risultato">
+          </label>
+          <div class="actions">
+            <button id="t-check" class="btn primary" type="submit">Verifica</button>
+            <button id="t-new" class="btn" type="button">Nuovo numero</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="t-feedback" class="feedback" aria-live="polite" hidden></div>
+
+      <details id="t-steps" class="steps" hidden>
+        <summary>Soluzione con i passaggi</summary>
+        <div class="steps-body" id="t-steps-body"></div>
+      </details>
+    </section>
+
+    <footer class="foot">Numeri interi non negativi · basi da 2 a 16</footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
