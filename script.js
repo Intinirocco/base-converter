@@ -382,9 +382,10 @@ function power(base, pos) {
   return `${base}<sup>${pos < 0 ? MINUS + -pos : pos}</sup>`;
 }
 
-function columnAdd(x, y, base, f) {
-  const W = Math.max(intToBase(x + y, base).length, f + 1);
-  const str = v => intToBase(v, base).padStart(f + 1, '0').padStart(W, ' ');
+function columnAdd(x, y, base, f, width = 0) {
+  const zeros = Math.max(f + 1, width);
+  const W = Math.max(intToBase(x + y, base).length, zeros);
+  const str = v => intToBase(v, base).padStart(zeros, '0').padStart(W, ' ');
   const xs = str(x), ys = str(y);
   const carries = Array(W).fill(' ');
   let rows = '', carry = 0;
@@ -434,6 +435,53 @@ function columnSub(x, y, base, f) {
       { text: str(x - y), cls: 'line' },
     ], f),
     details: table(['Colonna', 'Calcolo', 'Scrivi', 'Prestito'], rows),
+  };
+}
+
+// Sottrazione binaria x − y sommando al minuendo il complemento a 1 o a 2 del sottraendo.
+// x e y sono interi scalati con f bit dopo la virgola.
+function complementSub(x, y, f, kind) {
+  const n = Math.max(intToBase(x, 2).length, intToBase(y, 2).length, f + 1);
+  const full = 1n << BigInt(n);
+  const bits = v => withComma(v.toString(2).padStart(n, '0'), f);
+  const row = (label, v, hl) => `<tr><td>${label}</td><td class="r${hl ? ' hl' : ''}">${bits(v)}</td></tr>`;
+  const inverted = full - 1n - y;
+  const comp = kind === 2 ? inverted + 1n : inverted;
+  const sum = x + comp;
+  const carry = sum >= full;
+  const last = f ? ' all\'ultimo bit' : '';
+
+  let prep = row('Minuendo', x) + row('Sottraendo', y);
+  prep += kind === 2
+    ? row('Bit del sottraendo invertiti', inverted) + row('+ 1 → complemento a 2', comp, true)
+    : row('Bit del sottraendo invertiti → complemento a 1', comp, true);
+
+  let mag, ending;
+  if (kind === 2 && carry) {
+    mag = sum - full;
+    ending = `La somma produce un riporto oltre il bit più a sinistra: il riporto finale si scarta e il risultato è positivo.`;
+  } else if (kind === 2) {
+    mag = full - sum;
+    ending = `Non c'è riporto oltre il bit più a sinistra: il risultato è negativo. Il suo valore assoluto è il complemento a 2 della somma (inverti i bit e somma 1${last}): ${bits(sum)} → ${bits(mag)}.`;
+  } else if (carry) {
+    mag = sum - full + 1n;
+    ending = `La somma produce un riporto oltre il bit più a sinistra: il riporto finale si toglie e si somma${last} (riporto circolare), ${bits(sum - full)} + 1 = ${bits(mag)}. Il risultato è positivo.`;
+  } else {
+    mag = full - 1n - sum;
+    ending = `Non c'è riporto oltre il bit più a sinistra: il risultato è negativo. Il suo valore assoluto si ottiene invertendo i bit della somma: ${bits(sum)} → ${bits(mag)}.`;
+  }
+  const neg = !carry && mag > 0n;
+  const intro = kind === 2
+    ? `inverti tutti i bit del sottraendo e aggiungi 1${last}`
+    : 'inverti tutti i bit del sottraendo';
+  return {
+    value: neg ? -mag : mag,
+    body: `<p>Scrivi i due numeri su ${n} bit${f ? ', allineando le virgole' : ''}. Invece di sottrarre, somma al minuendo il complemento a ${kind} del sottraendo: ${intro}.</p>
+      ${table(['Operazione', 'Bit'], prep)}
+      <p style="margin-top:14px">Somma il minuendo e il complemento:</p>
+      ${columnAdd(x, comp, 2, f, n).layout}
+      <p class="line">${ending}</p>
+      <p class="line">Risultato: <strong class="mono">${neg ? MINUS : ''}${scaledToStr(mag, f, 2)}</strong></p>`,
   };
 }
 
@@ -512,24 +560,38 @@ function solveOp(rawA, rawB, base, op) {
     const r = sa * x + sb * y;
     neg = r < 0n;
     magnitude = scaledToStr(neg ? -r : r, f, base);
-    const same = sa === sb;
-    const swap = y > x;
-    const expr = same ? `${magA} + ${magB}` : swap ? `${magB} ${MINUS} ${magA}` : `${magA} ${MINUS} ${magB}`;
-    if (a.neg || b.neg || (!same && swap)) {
-      blocks.push({
-        title: 'Segni',
-        body: `<p>Tenendo conto dei segni l'operazione diventa ${mono(neg ? `${MINUS}(${expr})` : expr)}: si lavora sui valori assoluti e il segno si mette alla fine.</p>`,
-      });
-    }
-    const col = same ? columnAdd(x, y, base, f) : swap ? columnSub(y, x, base, f) : columnSub(x, y, base, f);
-    blocks.push({
-      title: same ? 'Somma in colonna' : 'Sottrazione in colonna',
-      body: `<p>${f ? `Allinea le virgole, poi ${same ? 'somma' : 'sottrai'}` : same ? 'Somma' : 'Sottrai'}${same
-        ? ` colonna per colonna partendo da destra: quando il totale arriva a ${base} o lo supera, scrivi il resto e riporta 1 nella colonna a sinistra.`
-        : ` colonna per colonna partendo da destra: quando la cifra sopra è più piccola, chiedi in prestito 1 dalla colonna a sinistra, che qui vale ${base}.`}</p>
-        ${col.layout}<p>La riga in piccolo indica ${same ? 'i riporti' : 'i prestiti'}.</p>`,
+    const signs = expr => blocks.push({
+      title: 'Segni',
+      body: `<p>Tenendo conto dei segni l'operazione diventa ${mono(expr)}: si lavora sui valori assoluti${neg && sa === sb ? ' e il segno si mette alla fine' : ''}.</p>`,
     });
-    blocks.push({ title: 'Colonna per colonna', body: `<p>I calcoli sono scritti con i valori decimali delle cifre.</p>${col.details}` });
+
+    if (sa === sb) {
+      if (a.neg || b.neg) signs(neg ? `${MINUS}(${magA} + ${magB})` : `${magA} + ${magB}`);
+      const col = columnAdd(x, y, base, f);
+      blocks.push({
+        title: 'Somma in colonna',
+        body: `<p>${f ? 'Allinea le virgole, poi somma' : 'Somma'} colonna per colonna partendo da destra: quando il totale arriva a ${base} o lo supera, scrivi il resto e riporta 1 nella colonna a sinistra.</p>
+          ${col.layout}<p>La riga in piccolo indica i riporti.</p>`,
+      });
+      blocks.push({ title: 'Colonna per colonna', body: `<p>I calcoli sono scritti con i valori decimali delle cifre.</p>${col.details}` });
+    } else if (base === 2) {
+      // In binario la sottrazione si fa con i complementi: il minuendo è l'addendo positivo.
+      const [m, s, mStr, sStr] = sa > 0n ? [x, y, magA, magB] : [y, x, magB, magA];
+      if (a.neg || b.neg) signs(`${mStr} ${MINUS} ${sStr}`);
+      blocks.push({ title: 'Sottrazione con il complemento a 2', body: complementSub(m, s, f, 2).body });
+      blocks.push({ title: 'Sottrazione con il complemento a 1', body: complementSub(m, s, f, 1).body });
+    } else {
+      const swap = y > x;
+      const expr = swap ? `${magB} ${MINUS} ${magA}` : `${magA} ${MINUS} ${magB}`;
+      if (a.neg || b.neg || swap) signs(neg ? `${MINUS}(${expr})` : expr);
+      const col = swap ? columnSub(y, x, base, f) : columnSub(x, y, base, f);
+      blocks.push({
+        title: 'Sottrazione in colonna',
+        body: `<p>${f ? 'Allinea le virgole, poi sottrai' : 'Sottrai'} colonna per colonna partendo da destra: quando la cifra sopra è più piccola, chiedi in prestito 1 dalla colonna a sinistra, che qui vale ${base}.</p>
+          ${col.layout}<p>La riga in piccolo indica i prestiti.</p>`,
+      });
+      blocks.push({ title: 'Colonna per colonna', body: `<p>I calcoli sono scritti con i valori decimali delle cifre.</p>${col.details}` });
+    }
   } else if (op === '*') {
     const f = fa + fb;
     const prod = a.num * b.num;
@@ -578,16 +640,18 @@ function solveOp(rawA, rawB, base, op) {
     const s = withBase((p.neg ? MINUS : '') + mag, base);
     return wrap && p.neg ? `(${s})` : s;
   };
-  let final = `${shown(a, magA)} ${OP_SIGN[op]} ${shown(b, magB, true)} = ${withBase(display, base)}`;
+  const expr = `${shown(a, magA)} ${OP_SIGN[op]} ${shown(b, magB, true)}`;
+  let final = `${expr} = ${withBase(display, base)}`;
+
+  // Risultato come frazione esatta
+  const an = a.neg ? -a.num : a.num, bn = b.neg ? -b.num : b.num;
+  let [rn, rd] = op === '+' ? [an * b.den + bn * a.den, a.den * b.den]
+    : op === '-' ? [an * b.den - bn * a.den, a.den * b.den]
+    : op === '*' ? [an * bn, a.den * b.den]
+    : [an * b.den, a.den * bn];
+  if (rd < 0n) [rn, rd] = [-rn, -rd];
 
   if (base !== 10) {
-    // Verifica in base 10 con frazioni esatte
-    const an = a.neg ? -a.num : a.num, bn = b.neg ? -b.num : b.num;
-    let [rn, rd] = op === '+' ? [an * b.den + bn * a.den, a.den * b.den]
-      : op === '-' ? [an * b.den - bn * a.den, a.den * b.den]
-      : op === '*' ? [an * bn, a.den * b.den]
-      : [an * b.den, a.den * bn];
-    if (rd < 0n) [rn, rd] = [-rn, -rd];
     const dec = (n, d, wrap) => {
       const s = (n < 0n ? MINUS : '') + decStr(n < 0n ? -n : n, d, MAX_FRAC);
       return wrap && n < 0n ? `(${s})` : s;
@@ -596,14 +660,15 @@ function solveOp(rawA, rawB, base, op) {
   }
 
   return {
-    display, truncated,
+    display, truncated, expr,
+    value: { neg: rn < 0n, num: rn < 0n ? -rn : rn, den: rd },
     copy: display.replace('…', '').replace(MINUS, '-'),
     steps: renderSteps(blocks, final, false),
   };
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { parseNumber, solve, readTwos, solveOp };
+  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub };
 }
 
 /* ---------- Interfaccia ---------- */
@@ -718,15 +783,17 @@ if (typeof document !== 'undefined') {
 
   /* Allenamento */
 
-  const tFrom = $('t-from'), tTo = $('t-to'), tLevel = $('t-level');
-  const tNeg = $('t-neg'), tFrac = $('t-frac');
+  const tKind = $('t-kind'), tFrom = $('t-from'), tTo = $('t-to'), tBase = $('t-base'), tOp = $('t-op');
+  const tLevel = $('t-level'), tNeg = $('t-neg'), tFrac = $('t-frac');
   const tPrompt = $('t-prompt'), tNumber = $('t-number'), tNote = $('t-note'), tAnswer = $('t-answer');
   const tCheck = $('t-check'), tFeedback = $('t-feedback');
   const tSteps = $('t-steps'), tStepsBody = $('t-steps-body'), tScore = $('t-score');
 
   const COMMON_BASES = [2, 8, 10, 16];
-  // [minimo, massimo, massimo esponente del denominatore 2^m della parte frazionaria]
+  // Conversioni: [minimo, massimo, massimo esponente del denominatore 2^m della parte frazionaria]
   const LEVELS = { easy: [4, 255, 2], medium: [256, 4095, 3], hard: [4096, 65535, 4] };
+  // Operazioni: [intervallo degli operandi, intervallo del secondo fattore o del divisore, cifre dopo la virgola]
+  const OP_LEVELS = { easy: [[2, 31], [2, 7], 1], medium: [[16, 255], [2, 15], 1], hard: [[128, 4095], [4, 63], 2] };
   const TRAIN_FRAC = 4;  // cifre richieste quando la parte frazionaria non termina
   const score = { right: 0, total: 0 };
   let exercise = null;
@@ -734,9 +801,21 @@ if (typeof document !== 'undefined') {
 
   fillBases(tFrom, 'random', true);
   fillBases(tTo, 10);
+  fillBases(tBase, 'random', true);
 
   function randomInt(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  function pick(list) {
+    return list[randomInt(0, list.length - 1)];
+  }
+
+  // Da 1 a maxLen cifre casuali, con l'ultima diversa da zero.
+  function randomDigits(base, maxLen) {
+    let digits = '';
+    for (let i = randomInt(1, maxLen); i > 1; i--) digits += DIGITS[randomInt(0, base - 1)];
+    return digits + DIGITS[randomInt(1, base - 1)];
   }
 
   // Parte frazionaria nella base di partenza; quando possibile termina anche in quella di arrivo.
@@ -746,18 +825,12 @@ if (typeof document !== 'undefined') {
     const den = 1n << BigInt(m);
     const src = fracToBase(k, den, from, 8);
     if (src.exact && fracToBase(k, den, to, 8).exact) return src.digits;
-    let digits = '';
-    for (let i = randomInt(1, 2); i > 1; i--) digits += DIGITS[randomInt(0, from - 1)];
-    return digits + DIGITS[randomInt(1, from - 1)];
+    return randomDigits(from, 2);
   }
 
-  function newExercise() {
+  function conversionExercise() {
     const to = Number(tTo.value);
-    let from = Number(tFrom.value);
-    if (tFrom.value === 'random') {
-      const pool = COMMON_BASES.filter(b => b !== to);
-      from = pool[randomInt(0, pool.length - 1)];
-    }
+    const from = tFrom.value === 'random' ? pick(COMMON_BASES.filter(b => b !== to)) : Number(tFrom.value);
     const [min, max, maxPow] = LEVELS[tLevel.value];
     const neg = tNeg.checked;
     const frac = tFrac.checked ? randomFraction(from, to, maxPow) : '';
@@ -775,17 +848,44 @@ if (typeof document !== 'undefined') {
     }
 
     const sol = solve(raw, from, to, { signedIn, bits: 'auto', fracLimit: TRAIN_FRAC });
-    exercise = { from, to, sol, done: false };
-
     const notes = [];
     if (signedIn) notes.push('Il numero è scritto in complemento a 2.');
     if (sol.twosBits) notes.push(`Rispondi in complemento a 2 su ${sol.twosBits} bit${sol.hasFrac ? ' di parte intera' : ''}.`);
     if (sol.truncated) notes.push(`Fermati a ${TRAIN_FRAC} cifre dopo la virgola.`);
+    return { base: to, sol, notes, prompt: `Converti in base ${to}`, question: withBase(sol.source, from) };
+  }
 
-    tPrompt.textContent = `Converti in base ${to}`;
-    tNumber.innerHTML = withBase(sol.source, from);
-    tNote.textContent = notes.join(' ');
-    tNote.hidden = !notes.length;
+  function operationExercise() {
+    const base = tBase.value === 'random' ? pick(COMMON_BASES) : Number(tBase.value);
+    const op = tOp.value === 'random' ? pick(['+', '-', '*', '/']) : tOp.value;
+    const [big, small, fracLen] = OP_LEVELS[tLevel.value];
+    const operand = ([min, max], neg) => (neg ? '-' : '')
+      + joinParts(intToBase(BigInt(randomInt(min, max)), base), tFrac.checked ? randomDigits(base, fracLen) : '');
+
+    // Con i negativi attivi almeno uno dei due numeri è negativo.
+    let negA = false, negB = false;
+    if (tNeg.checked) {
+      negA = Math.random() < 0.5;
+      negB = !negA || Math.random() < 0.5;
+    }
+
+    let a = operand(big, negA);
+    const b = operand(op === '+' || op === '-' ? big : small, negB);
+    // Divisione: il dividendo è un prodotto, così il quoziente è esatto.
+    if (op === '/') a = solveOp(operand(small, negA !== negB), b, base, '*').copy;
+
+    const sol = solveOp(a, b, base, op);
+    // L'avviso non dipende dal segno del risultato, per non suggerire la risposta.
+    const notes = tNeg.checked || op === '-' ? [`Se il risultato è negativo scrivilo con il segno ${MINUS}.`] : [];
+    return { base, sol, notes, prompt: `Calcola in base ${base}`, question: sol.expr };
+  }
+
+  function newExercise() {
+    exercise = tKind.value === 'op' ? operationExercise() : conversionExercise();
+    tPrompt.textContent = exercise.prompt;
+    tNumber.innerHTML = exercise.question;
+    tNote.textContent = exercise.notes.join(' ');
+    tNote.hidden = !exercise.notes.length;
     tAnswer.value = '';
     tAnswer.disabled = false;
     tCheck.disabled = false;
@@ -796,9 +896,9 @@ if (typeof document !== 'undefined') {
 
   // Restituisce '' se la risposta è giusta, altrimenti il motivo dell'errore.
   function judge(answer) {
-    const { to, sol } = exercise;
-    const p = parseNumber(answer, to);
-    if (p.error) return p.error.format ? FORMAT_MSG : invalidDigitMessage(p.error.ch, to);
+    const { base, sol } = exercise;
+    const p = parseNumber(answer, base);
+    if (p.error) return p.error.format ? FORMAT_MSG : invalidDigitMessage(p.error.ch, base);
     let a = p;
     if (sol.twosBits) {
       if (p.hasSign) return `In complemento a 2 non si usa il segno ${MINUS}: il segno è dato dal primo bit.`;
@@ -807,7 +907,7 @@ if (typeof document !== 'undefined') {
     const v = sol.value;
     let same = a.neg === v.neg;
     if (same && sol.truncated) {
-      const s = BigInt(to) ** BigInt(TRAIN_FRAC);
+      const s = BigInt(base) ** BigInt(TRAIN_FRAC);
       same = a.num * s / a.den === v.num * s / v.den;
     } else if (same) {
       same = a.num * v.den === v.num * a.den;
@@ -817,11 +917,11 @@ if (typeof document !== 'undefined') {
 
   function checkAnswer() {
     if (!exercise || exercise.done) return;
-    if (parseNumber(tAnswer.value, exercise.to).empty) {
+    if (parseNumber(tAnswer.value, exercise.base).empty) {
       tAnswer.focus();
       return;
     }
-    const { from, to, sol } = exercise;
+    const { base, sol, question } = exercise;
     const why = judge(tAnswer.value);
     const correct = !why;
 
@@ -834,8 +934,8 @@ if (typeof document !== 'undefined') {
     tFeedback.hidden = false;
     tFeedback.className = `feedback ${correct ? 'ok' : 'bad'}`;
     tFeedback.innerHTML = correct
-      ? `<strong>Corretto!</strong><span class="mono">${withBase(sol.source, from)} = ${withBase(sol.display, to)}</span>`
-      : `<strong>Non è corretto.</strong><span>${why}</span><span>Risposta giusta: <strong class="mono">${withBase(sol.display, to)}</strong></span>`;
+      ? `<strong>Corretto!</strong><span class="mono">${question} = ${withBase(sol.display, base)}</span>`
+      : `<strong>Non è corretto.</strong><span>${why}</span><span>Risposta giusta: <strong class="mono">${withBase(sol.display, base)}</strong></span>`;
 
     tStepsBody.innerHTML = sol.steps;
     tSteps.hidden = false;
@@ -853,13 +953,21 @@ if (typeof document !== 'undefined') {
     newExercise();
   }
 
+  function onKindChange() {
+    for (const el of document.querySelectorAll('#panel-train [data-kind]')) {
+      el.hidden = el.dataset.kind !== tKind.value;
+    }
+    newExercise();
+  }
+
+  tKind.addEventListener('change', onKindChange);
   tFrom.addEventListener('change', () => onBaseChange(tFrom, tTo, prev.from));
   tTo.addEventListener('change', () => onBaseChange(tTo, tFrom, prev.to));
-  for (const el of [tLevel, tNeg, tFrac]) el.addEventListener('change', newExercise);
+  for (const el of [tBase, tOp, tLevel, tNeg, tFrac]) el.addEventListener('change', newExercise);
   $('t-new').addEventListener('click', () => { newExercise(); tAnswer.focus(); });
   $('t-form').addEventListener('submit', e => { e.preventDefault(); checkAnswer(); });
 
-  newExercise();
+  onKindChange();
 
   /* Operazioni */
 

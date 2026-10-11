@@ -80,13 +80,38 @@
     <!-- Allenamento -->
     <section class="panel" id="panel-train" role="tabpanel" aria-labelledby="tab-train" hidden>
       <div class="card bar train-bar">
-        <label class="field">
+        <label class="field kind">
+          <span class="label">Esercizio</span>
+          <span class="select">
+            <select id="t-kind">
+              <option value="conv">Conversioni</option>
+              <option value="op">Operazioni</option>
+            </select>
+          </span>
+        </label>
+        <label class="field" data-kind="conv">
           <span class="label">Da base</span>
           <span class="select"><select id="t-from"></select></span>
         </label>
-        <label class="field">
+        <label class="field" data-kind="conv">
           <span class="label">A base</span>
           <span class="select"><select id="t-to"></select></span>
+        </label>
+        <label class="field" data-kind="op" hidden>
+          <span class="label">Base</span>
+          <span class="select"><select id="t-base"></select></span>
+        </label>
+        <label class="field" data-kind="op" hidden>
+          <span class="label">Operazione</span>
+          <span class="select">
+            <select id="t-op">
+              <option value="random">Casuale</option>
+              <option value="+">+ somma</option>
+              <option value="-">− sottrazione</option>
+              <option value="*">× moltiplicazione</option>
+              <option value="/">÷ divisione</option>
+            </select>
+          </span>
         </label>
         <label class="field">
           <span class="label">Difficoltà</span>
