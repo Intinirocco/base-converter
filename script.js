@@ -728,6 +728,21 @@ if (typeof document !== 'undefined') {
     });
   });
 
+  // Su mobile Invio chiude la tastiera (togliendo il focus) e porta in vista il risultato.
+  function showOnEnter(input, target, next) {
+    input.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (next && !next.value.trim()) {
+        next.focus();
+        return;
+      }
+      input.blur();
+      // Aspetta che la tastiera si chiuda prima di scorrere.
+      setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
+    });
+  }
+
   /* Convertitore */
 
   const cInput = $('c-input'), cFrom = $('c-from'), cTo = $('c-to');
@@ -768,6 +783,7 @@ if (typeof document !== 'undefined') {
 
   for (const el of [cFrom, cTo, cSigned, cBits]) el.addEventListener('change', convert);
   cInput.addEventListener('input', convert);
+  showOnEnter(cInput, cOutput.closest('.hero'));
 
   $('c-swap').addEventListener('click', () => {
     const from = cFrom.value;
@@ -955,7 +971,10 @@ if (typeof document !== 'undefined') {
     tSteps.hidden = false;
     tSteps.open = !correct;
     tScore.textContent = `${score.right} / ${score.total}`;
-    $('t-new').focus();
+    // Toglie il focus dal campo (su mobile chiude la tastiera) e porta in vista l'esito.
+    tAnswer.blur();
+    $('t-new').focus({ preventScroll: true });
+    setTimeout(() => tFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
   }
 
   // Le due basi non possono coincidere: se succede, l'altra prende il valore precedente.
@@ -1014,6 +1033,8 @@ if (typeof document !== 'undefined') {
   }
 
   for (const el of [oA, oB]) el.addEventListener('input', operate);
+  showOnEnter(oA, oOutput.closest('.hero'), oB);
+  showOnEnter(oB, oOutput.closest('.hero'));
   for (const el of [oOp, oBase]) el.addEventListener('change', operate);
   wireCopy(oCopy, () => oResult.copy);
 }
