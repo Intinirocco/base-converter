@@ -19,8 +19,8 @@
 
       <div class="tabs" role="tablist" aria-label="Modalità">
         <button class="tab" role="tab" id="tab-convert" aria-controls="panel-convert" aria-selected="true">Converti</button>
-        <button class="tab" role="tab" id="tab-train" aria-controls="panel-train" aria-selected="false" tabindex="-1">Allenamento</button>
         <button class="tab" role="tab" id="tab-ops" aria-controls="panel-ops" aria-selected="false" tabindex="-1">Operazioni</button>
+        <button class="tab" role="tab" id="tab-train" aria-controls="panel-train" aria-selected="false" tabindex="-1">Allenamento</button>
       </div>
     </div>
 
@@ -29,7 +29,7 @@
       <div class="card bar">
         <label class="field wide">
           <span class="label">Numero</span>
-          <input id="c-input" enterkeyhint="done" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" placeholder="es. 101101 · −45 · 12,75">
+          <input id="c-input" enterkeyhint="done" class="input mono" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="80" placeholder="es. 101101 · −45 · 12,75">
         </label>
         <label class="field">
           <span class="label">Da base</span>
@@ -43,9 +43,25 @@
           <span class="select"><select id="c-to"></select></span>
         </label>
         <div id="c-opts" class="opts">
-          <label id="c-signed-wrap" class="check">
-            <input id="c-signed" type="checkbox">
-            <span>Il numero binario è in complemento a 2</span>
+          <label id="c-in-wrap" class="inline-field">
+            <span>Il numero binario è in</span>
+            <span class="select small">
+              <select id="c-in-fmt">
+                <option value="fixed">virgola fissa</option>
+                <option value="twos">complemento a 2</option>
+                <option value="float">virgola mobile (IEEE 754)</option>
+              </select>
+            </span>
+          </label>
+          <label id="c-out-wrap" class="inline-field" hidden>
+            <span>Scrivi il risultato in</span>
+            <span class="select small">
+              <select id="c-out-fmt">
+                <option value="0">virgola fissa</option>
+                <option value="32">virgola mobile a 32 bit</option>
+                <option value="64">virgola mobile a 64 bit</option>
+              </select>
+            </span>
           </label>
           <label id="c-bits-wrap" class="inline-field" hidden>
             <span>Complemento a 2 su</span>
@@ -85,6 +101,7 @@
             <select id="t-kind">
               <option value="conv">Conversioni</option>
               <option value="op">Operazioni</option>
+              <option value="float">Virgola mobile</option>
             </select>
           </span>
         </label>
@@ -191,6 +208,12 @@
           <span class="label">Base</span>
           <span class="select"><select id="o-base"></select></span>
         </label>
+        <div class="opts" id="o-float-wrap">
+          <label class="check">
+            <input id="o-float" type="checkbox">
+            <span>Mostra anche il calcolo in virgola mobile</span>
+          </label>
+        </div>
         <p id="o-error" class="error" role="alert" hidden></p>
       </div>
 

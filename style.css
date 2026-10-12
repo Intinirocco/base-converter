@@ -266,6 +266,7 @@ button:focus-visible, summary:focus-visible {
 
 .check, .inline-field {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-height: 32px;
@@ -327,6 +328,8 @@ button:focus-visible, summary:focus-visible {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+
+.hero-value.long { font-size: clamp(1.05rem, 3.4vw, 1.6rem); line-height: 1.4; }
 
 sub.base {
   font-family: var(--sans);

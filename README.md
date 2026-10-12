@@ -1,6 +1,6 @@
 # Basi
 
-Un sito per lavorare con le basi numeriche che non si limita a dare il risultato: mostra anche **tutti i passaggi** per arrivarci. Ha tre sezioni: il convertitore, l'allenamento e le operazioni nella stessa base.
+Un sito per lavorare con le basi numeriche che non si limita a dare il risultato: mostra anche **tutti i passaggi** per arrivarci. Ha tre sezioni: il convertitore, le operazioni nella stessa base e l'allenamento.
 
 **▶ Provalo online: [intinirocco.github.io/base-converter](https://intinirocco.github.io/base-converter/)**
 
@@ -16,12 +16,25 @@ Aprendo la tendina **«Mostra i passaggi»** trovi il procedimento completo. Il 
 
 Se inserisci una cifra che non esiste nella base scelta (ad esempio un `2` in binario), il sito ti dice quale cifra è sbagliata e quali sono ammesse.
 
+### Operazioni
+
+Inserisci due numeri nella stessa base, scegli tra **+ − × ÷** e ottieni il risultato in quella base, con i passaggi:
+
+- **somma** in colonna, con la riga dei riporti e la spiegazione di ogni colonna;
+- **sottrazione in base 2** con il complemento a 2 e con il complemento a 1 (vedi sotto);
+- **sottrazione nelle altre basi** in colonna, con la riga dei prestiti;
+- **moltiplicazione** in colonna, con i prodotti parziali;
+- **divisione** lunga cifra per cifra, con quoziente intero, resto e cifre dopo la virgola.
+
+Se la base non è 10, in fondo ai passaggi trovi la stessa operazione in base 10 come verifica. In base 2 puoi spuntare **«Mostra anche il calcolo in virgola mobile»** per vedere lo stesso calcolo in forma normalizzata.
+
 ### Allenamento
 
 Dalla tendina **«Esercizio»** scegli su cosa allenarti:
 
 - **Conversioni** — scegli la base di partenza (anche casuale) e quella di arrivo: il sito genera un numero a caso da convertire.
 - **Operazioni** — scegli la base e l'operazione (anche casuali): il sito propone un calcolo tra due numeri nella stessa base. Le divisioni hanno sempre un quoziente esatto.
+- **Virgola mobile** — il sito propone a caso di scrivere un numero decimale in IEEE 754 a 32 bit oppure di leggere 32 bit e trovarne il valore.
 
 In entrambi i casi puoi impostare la difficoltà e spuntare **«Numeri negativi»** e **«Numeri con la virgola»**: senza spunte escono solo interi positivi.
 
@@ -35,23 +48,11 @@ Scrivi la risposta e premi **«Verifica»**: se è giusta te lo conferma; se è 
 
 Nelle moltiplicazioni e nelle divisioni il secondo numero è più piccolo (fino a 7, 15 o 63 secondo la difficoltà).
 
-### Operazioni
-
-Inserisci due numeri nella stessa base, scegli tra **+ − × ÷** e ottieni il risultato in quella base, con i passaggi:
-
-- **somma** in colonna, con la riga dei riporti e la spiegazione di ogni colonna;
-- **sottrazione in base 2** con il complemento a 2 e con il complemento a 1 (vedi sotto);
-- **sottrazione nelle altre basi** in colonna, con la riga dei prestiti;
-- **moltiplicazione** in colonna, con i prodotti parziali;
-- **divisione** lunga cifra per cifra, con quoziente intero, resto e cifre dopo la virgola.
-
-Se la base non è 10, in fondo ai passaggi trovi la stessa operazione in base 10 come verifica.
-
 ## Come vengono spiegati i passaggi
 
 La conversione passa dalla base 10, come si fa di solito a mano.
 
-**1. Dalla base di partenza alla base 10** — ogni cifra viene moltiplicata per la base elevata alla sua posizione (da 0 in su a sinistra della virgola, negativa a destra), poi si sommano i risultati:
+**1. Dalla base di partenza alla base 10** — ogni cifra viene moltiplicata per il suo peso, cioè la base elevata alla posizione. Parte intera e parte frazionaria sono spiegate in due riquadri distinti: a sinistra della virgola i pesi partono da 1 e crescono, a destra l'esponente è negativo e il peso è una frazione (16⁻¹ = 1/16).
 
 ```
 2F,8 in base 16  →  2 × 16¹ + 15 × 16⁰ + 8 × 16⁻¹  =  32 + 15 + 0,5  =  47,5
@@ -87,7 +88,7 @@ In binario i numeri negativi sono rappresentati in **complemento a 2**: si scriv
 ```
 
 - Il sito lavora sempre su lunghezze standard: **8 bit**, oppure 16, 32 o 64 se il numero non ci sta. Quando la base di arrivo è 2 puoi anche fissare tu la lunghezza (8, 16 o 32 bit).
-- Quando la base di partenza è 2, spunta **«Il numero binario è in complemento a 2»** per far leggere il primo bit come segno: così `11010011` vale −45 invece di 211.
+- Quando la base di partenza è 2, scegli **«complemento a 2»** nella tendina «Il numero binario è in» per far leggere il primo bit come segno: così `11010011` vale −45 invece di 211.
 - Un numero binario più corto viene prima completato con zeri a sinistra fino alla lunghezza standard, quindi gli zeri iniziali non cambiano il valore: `11000` e `011000` valgono entrambi 24 (`00011000`), mentre −8 si scrive `11111000`.
 - Nell'allenamento la risposta in complemento a 2 va scritta con tutti i bit indicati nella consegna.
 - Nelle altre basi, e nei risultati della sezione Operazioni, i negativi si scrivono con il segno meno.
@@ -112,6 +113,37 @@ Se non c'è riporto il risultato è negativo, e il suo valore assoluto è il com
 
 ```
 00001000 − 00000011:   00000011 → 11111100      00001000 + 11111100 = (1)00000100   →  00000100 + 1 = 101
+```
+
+### Virgola fissa e virgola mobile
+
+La scrittura con la virgola in una posizione precisa, come `101,11`, è la **virgola fissa**. In **virgola mobile** il numero si scrive invece come mantissa × 2 elevato a un esponente, secondo lo standard **IEEE 754**:
+
+| Formato | Segno | Esponente | Mantissa | Bias |
+| --- | --- | --- | --- | --- |
+| 32 bit | 1 bit | 8 bit | 23 bit | 127 |
+| 64 bit | 1 bit | 11 bit | 52 bit | 1023 |
+
+Per scrivere un numero in virgola mobile:
+
+1. lo si converte in binario in virgola fissa: `5,75 = 101,11`;
+2. lo si normalizza spostando la virgola dopo il primo 1: `101,11 = 1,0111 × 2²`;
+3. all'esponente si somma il bias: `2 + 127 = 129 = 10000001`;
+4. la mantissa sono le cifre dopo la virgola (l'1 iniziale è sottinteso), completate con zeri: `0111000…`;
+5. il primo bit è il segno: 0 per i positivi, 1 per i negativi.
+
+```
+−5,75  →  1 10000001 01110000000000000000000
+```
+
+- Nel convertitore, quando la base di arrivo è 2 scegli il formato nella tendina **«Scrivi il risultato in»**; quando la base di partenza è 2 scegli **«virgola mobile (IEEE 754)»** nella tendina «Il numero binario è in» e scrivi i 32 o 64 bit.
+- Se le cifre non stanno nella mantissa (come per 0,1) questa viene arrotondata al valore più vicino, come prevede lo standard.
+- Sono gestiti anche zero, infinito, NaN e i numeri denormalizzati.
+
+**Operazioni in virgola mobile** — per sommare o sottrarre si portano i due numeri allo stesso esponente e si lavora sulle mantisse; per moltiplicare o dividere si moltiplicano o dividono le mantisse e si sommano o sottraggono gli esponenti. In entrambi i casi il risultato va poi normalizzato:
+
+```
+1,0111 × 2²  +  1,1 × 2⁰   →   1,0111 × 2²  +  0,011 × 2²   =   1,1101 × 2²
 ```
 
 ## Limiti

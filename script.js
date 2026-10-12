@@ -151,33 +151,59 @@ function table(head, rows) {
   return `<div class="table-wrap"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function toDecimalStep(srcInt, srcFrac, base, total) {
+// Blocchi per passare dalla base `base` alla base 10: uno solo per gli interi,
+// due distinti (parte intera e parte frazionaria) quando c'è la virgola.
+function toDecimalBlocks(srcInt, srcFrac, base, I, R, den) {
   const b = BigInt(base);
-  const terms = [];
-  const row = (ch, pos) => {
-    const d = BigInt(DIGITS.indexOf(ch));
-    const val = pos >= 0 ? String(d * b ** BigInt(pos)) : decStr(d, b ** BigInt(-pos));
-    terms.push(val);
-    return `<tr><td>${digitLabel(ch)}</td><td>${d} × ${base}<sup>${pos < 0 ? MINUS + -pos : pos}</sup></td><td class="r">${val}</td></tr>`;
-  };
-  const rows = [...srcInt].map((ch, i) => row(ch, srcInt.length - 1 - i)).join('')
-    + [...srcFrac].map((ch, i) => row(ch, -(i + 1))).join('');
-  const how = srcFrac
-    ? `Moltiplica ogni cifra per ${base} elevato alla sua posizione: a sinistra della virgola le posizioni partono da 0 e crescono, a destra sono negative (${MINUS}1, ${MINUS}2, …). Poi somma i risultati.`
-    : `Moltiplica ogni cifra per ${base} elevato alla sua posizione (contando da 0 a partire da destra), poi somma i risultati.`;
-  const sum = terms.length > 1 ? `${terms.join(' + ')} = ` : '';
-  return `<p>${how}</p>${table(['Cifra', 'Calcolo', 'Valore'], rows)}
-    <p class="line mono">${sum}<strong>${total}</strong></p>`;
+  const head = ['Cifra', 'Peso', 'Cifra × peso'];
+  const sumLine = (terms, total) =>
+    `<p class="line mono">${terms.length > 1 ? `${terms.join(' + ')} = ` : ''}<strong>${total}</strong></p>`;
+
+  const intTerms = [];
+  const intRows = [...srcInt].map((ch, i) => {
+    const pos = srcInt.length - 1 - i;
+    const weight = b ** BigInt(pos);
+    const val = String(BigInt(DIGITS.indexOf(ch)) * weight);
+    intTerms.push(val);
+    return `<tr><td>${digitLabel(ch)}</td><td>${power(base, pos)} = ${weight}</td><td class="r">${val}</td></tr>`;
+  }).join('');
+  const intBody = how => `<p>${how}</p>${table(head, intRows)}${sumLine(intTerms, I)}`;
+
+  if (!srcFrac) {
+    return [{
+      title: `Da base ${base} a base 10`,
+      body: intBody(`Ogni cifra ha un peso che dipende dalla posizione: la prima da destra vale ${power(base, 0)} = 1, la seconda ${power(base, 1)} = ${base}, la terza ${power(base, 2)} = ${base * base} e così via. Moltiplica ogni cifra per il suo peso e somma i risultati.`),
+    }];
+  }
+
+  const fracTerms = [];
+  const fracRows = [...srcFrac].map((ch, i) => {
+    const weight = b ** BigInt(i + 1);
+    const val = decStr(BigInt(DIGITS.indexOf(ch)), weight);
+    fracTerms.push(val);
+    return `<tr><td>${digitLabel(ch)}</td><td>${power(base, -(i + 1))} = 1/${weight}</td><td class="r">${val}</td></tr>`;
+  }).join('');
+  const fracTotal = fmt('0', expandFrac(R, den, 10, MAX_FRAC));
+  const total = fmt(String(I), expandFrac(R, den, 10, MAX_FRAC));
+  return [{
+    title: `Da base ${base} a base 10 · parte intera`,
+    body: intBody(`Considera solo le cifre a sinistra della virgola: <span class="mono">${srcInt}</span>. La prima da destra ha peso ${power(base, 0)} = 1, la seconda ${power(base, 1)} = ${base}, poi ${power(base, 2)} = ${base * base} e così via. Moltiplica ogni cifra per il suo peso e somma.`),
+  }, {
+    title: `Da base ${base} a base 10 · parte frazionaria`,
+    body: `<p>Ora le cifre a destra della virgola: <span class="mono">${srcFrac}</span>. Qui l'esponente è negativo, cioè il peso è una frazione sempre più piccola: la prima cifra vale ${power(base, -1)} = 1/${base}, la seconda ${power(base, -2)} = 1/${base * base} e così via. Moltiplica ogni cifra per il suo peso e somma.</p>
+      ${table(head, fracRows)}${sumLine(fracTerms, fracTotal)}
+      <p class="line">Unisci parte intera e parte frazionaria: <span class="mono">${I} + ${fracTotal} = <strong>${total}</strong></span></p>`,
+  }];
 }
 
-function intDivisionStep(value, base, tInt) {
+function intDivisionStep(value, base, tInt, hasFrac) {
   if (value === 0n) return '<p>La parte intera è 0 e resta 0.</p>';
   const b = BigInt(base);
   let rows = '';
   for (let n = value; n > 0n; n /= b) {
     rows += `<tr><td>${n} ÷ ${base}</td><td>${n / b}</td><td class="r hl">${digitCell(Number(n % b))}</td></tr>`;
   }
-  return `<p>Dividi ripetutamente per ${base} annotando ogni resto, finché il quoziente diventa 0.</p>
+  return `<p>Prendi ${hasFrac ? 'solo la parte intera' : 'il numero'}, <span class="mono">${value}</span>, e ${hasFrac ? 'dividila' : 'dividilo'} per ${base}: il resto è una cifra del risultato, il quoziente si divide di nuovo. Continua finché il quoziente diventa 0.</p>
     ${table(['Divisione', 'Quoziente', 'Resto'], rows)}
     <p class="line">Leggi i resti dal basso verso l'alto: <strong class="mono">${tInt}</strong></p>`;
 }
@@ -187,7 +213,7 @@ function fracMultiplyStep(fr, base, magnitude) {
     `<tr><td>${decStr(r.num, r.den)} × ${base}</td><td>${decStr(r.prod, r.den)}</td><td class="r hl">${digitCell(r.digit)}</td></tr>`).join('');
   const stop = fr.exact ? '' :
     `<p class="line">La parte frazionaria non si esaurisce: ci si ferma dopo ${fr.digits.length} cifre.</p>`;
-  return `<p>Moltiplica la parte frazionaria per ${base}: la parte intera del prodotto è la cifra successiva. Ripeti con la parte frazionaria rimasta, finché diventa 0.</p>
+  return `<p>Prendi solo la parte dopo la virgola, <span class="mono">${decStr(fr.rows[0].num, fr.rows[0].den)}</span>, e moltiplicala per ${base}: la parte intera del prodotto è la prima cifra dopo la virgola del risultato. Togli quella parte intera e ripeti con ciò che resta, finché diventa 0.</p>
     ${table(['Calcolo', 'Prodotto', 'Cifra'], rows)}
     <p class="line">Leggi le parti intere dall'alto verso il basso: <strong class="mono">0,${fr.digits}${fr.exact ? '' : '…'}</strong></p>${stop}
     <p class="line">Unisci parte intera e parte frazionaria: <strong class="mono">${magnitude}</strong></p>`;
@@ -244,9 +270,95 @@ function note(text, final) {
   return `<div class="step"><p>${text}</p></div><p class="final">${final}</p>`;
 }
 
+/* ---------- Virgola mobile (IEEE 754) ---------- */
+
+// Bit di esponente (e), bit di mantissa (m) e bias dei due formati.
+const FLOAT = { 32: { e: 8, m: 23, bias: 127 }, 64: { e: 11, m: 52, bias: 1023 } };
+
+// Parte intera di log2(num/den), con num e den positivi.
+function log2floor(num, den) {
+  const e = num.toString(2).length - den.toString(2).length;
+  const reaches = e >= 0 ? num >= den << BigInt(e) : num << BigInt(-e) >= den;
+  return reaches ? e : e - 1;
+}
+
+// Forma normalizzata 1,xxx × 2^e di num/den (positivo), con al più `max` cifre dopo la virgola.
+function normalized(num, den, max) {
+  const e = log2floor(num, den);
+  const [n, d] = e >= 0 ? [num, den << BigInt(e)] : [num << BigInt(-e), den];
+  const fr = fracToBase(n - d, d, 2, max);
+  return { e, text: `1${fr.digits ? `,${fr.digits}` : ''}${fr.exact ? '' : '…'}` };
+}
+
+// Divisione intera arrotondata al più vicino (a parità, al pari).
+function roundDiv(n, d) {
+  let q = n / d;
+  const r = n % d;
+  if (2n * r > d || (2n * r === d && q % 2n === 1n)) q++;
+  return { q, exact: r === 0n };
+}
+
+function floatFields(size, sign, E, M, extra) {
+  const F = FLOAT[size];
+  const expBits = E.toString(2).padStart(F.e, '0');
+  const mantBits = M.toString(2).padStart(F.m, '0');
+  const bits = sign + expBits + mantBits;
+  return {
+    size, sign, expBits, mantBits, bits, E,
+    text: `${sign} ${expBits} ${mantBits}`,
+    hex: BigInt('0b' + bits).toString(16).toUpperCase().padStart(size / 4, '0'),
+    ...extra,
+  };
+}
+
+// Codifica ±num/den in virgola mobile a 32 o 64 bit.
+function encodeFloat(neg, num, den, size) {
+  const { m, bias } = FLOAT[size];
+  const sign = neg ? '1' : '0';
+  const one = 1n << BigInt(m);
+  if (num === 0n) return floatFields(size, '0', 0, 0n, { kind: 'zero', exact: true });
+  let e = log2floor(num, den);
+  if (e < 1 - bias) {
+    // Troppo piccolo per la forma normalizzata: esponente fisso al minimo, mantissa 0,xxx
+    const r = roundDiv(num << BigInt(bias - 1 + m), den);
+    if (r.q === 0n) return floatFields(size, sign, 0, 0n, { kind: 'zero', exact: false });
+    if (r.q === one) return floatFields(size, sign, 1, 0n, { kind: 'normal', e: 1 - bias, exact: false });
+    return floatFields(size, sign, 0, r.q, { kind: 'sub', e: 1 - bias, exact: r.exact });
+  }
+  const shift = e - m;
+  const r = shift >= 0 ? roundDiv(num, den << BigInt(shift)) : roundDiv(num << BigInt(-shift), den);
+  if (r.q === one << 1n) {
+    r.q = one;
+    e++;
+  }
+  if (e > bias) return { overflow: true };
+  return floatFields(size, sign, e + bias, r.q - one, { kind: 'normal', e, exact: r.exact });
+}
+
+// Legge 32 o 64 bit in virgola mobile e ne ricava il valore esatto num/den.
+function decodeFloat(bits) {
+  const size = bits.length;
+  const { e: eb, m, bias } = FLOAT[size];
+  const sign = bits[0];
+  const E = parseInt(bits.slice(1, 1 + eb), 2);
+  const M = BigInt('0b' + bits.slice(1 + eb));
+  const f = floatFields(size, sign, E, M);
+  if (E === 2 ** eb - 1) return { ...f, kind: M === 0n ? 'inf' : 'nan' };
+  if (E === 0) {
+    return { ...f, kind: M === 0n ? 'zero' : 'sub', e: 1 - bias, num: M, den: 1n << BigInt(m + bias - 1) };
+  }
+  const e = E - bias;
+  const full = (1n << BigInt(m)) + M;
+  return e >= m
+    ? { ...f, kind: 'normal', e, num: full << BigInt(e - m), den: 1n }
+    : { ...f, kind: 'normal', e, num: full, den: 1n << BigInt(m - e) };
+}
+
 /*
  * Converte `raw` dalla base `from` alla base `to` e costruisce i passaggi.
  * opts.signedIn  — un numero binario in ingresso va letto in complemento a 2
+ * opts.floatIn   — un numero binario in ingresso è in virgola mobile IEEE 754 (32 o 64 bit)
+ * opts.floatOut  — 32 o 64: il risultato in base 2 va scritto in virgola mobile
  * opts.bits      — bit della parte intera per il complemento a 2 in uscita ('auto' o un numero)
  * opts.fracLimit — cifre dopo la virgola a cui fermarsi se l'espansione non termina
  */
@@ -255,19 +367,60 @@ function solve(raw, from, to, opts = {}) {
   if (p.empty) return { empty: true };
   if (p.error) return { error: p.error.format ? FORMAT_MSG : invalidDigitMessage(p.error.ch, from) };
 
-  const signedIn = !!opts.signedIn && from === 2;
+  const floatIn = !!opts.floatIn && from === 2;
+  const signedIn = !!opts.signedIn && from === 2 && !floatIn;
+  const floatOut = to === 2 && opts.floatOut ? opts.floatOut : 0;
   const tag = ' <span class="dim">(complemento a 2)</span>';
+  const floatTag = ' <span class="dim">(IEEE 754)</span>';
+  const mono = s => `<span class="mono">${s}</span>`;
   const blocks = [];
   let { neg, num, den } = p;
   let source = (p.neg ? MINUS : '') + joinParts(p.intDigits, p.fracDigits);
   let srcInt = p.intDigits, srcFrac = p.fracDigits;
 
-  if (signedIn) {
+  if (floatIn) {
+    if (p.hasSign || clean(raw).includes(',')) return { error: 'In virgola mobile si scrivono soltanto i bit, senza segno né virgola.' };
+    if (!FLOAT[p.rawInt.length]) return { error: `In virgola mobile IEEE 754 servono 32 o 64 bit: ne hai scritti ${p.rawInt.length}.` };
+    const d = decodeFloat(p.rawInt);
+    const F = FLOAT[d.size];
+    source = d.text;
+    if (d.kind === 'inf' || d.kind === 'nan') {
+      const display = d.kind === 'nan' ? 'NaN' : (d.sign === '1' ? MINUS : '+') + '∞';
+      const why = d.kind === 'nan'
+        ? 'L\'esponente ha tutti i bit a 1 e la mantissa non è zero: è un valore speciale, «non un numero» (NaN).'
+        : 'L\'esponente ha tutti i bit a 1 e la mantissa è zero: è il valore speciale infinito.';
+      return { display, copy: display, source, value: null, twosBits: null, floatBits: null, special: true,
+        steps: note(why, `${withBase(source, 2)}${floatTag} = ${display}`) };
+    }
+    ({ num, den } = d);
+    neg = d.sign === '1' && num > 0n;
+    srcInt = (num / den).toString(2);
+    srcFrac = fracToBase(num % den, den, 2, 2000).digits;
+    const trimmed = d.mantBits.replace(/0+$/, '');
+    const mant = (d.kind === 'sub' ? '0' : '1') + (trimmed ? `,${trimmed}` : '');
+    const expMeaning = d.kind === 'sub'
+      ? `tutti 0: numero denormalizzato, esponente ${MINUS}${F.bias - 1}`
+      : `${d.E} ${MINUS} ${F.bias} = ${d.e < 0 ? MINUS + -d.e : d.e}`;
+    blocks.push({
+      title: 'Segno, esponente e mantissa',
+      body: `<p>I ${d.size} bit si dividono in tre campi: 1 bit di segno, ${F.e} di esponente e ${F.m} di mantissa. All'esponente va tolto il bias ${F.bias}; davanti alla mantissa va rimesso l'1 sottinteso.</p>
+        ${table(['Campo', 'Bit', 'Significato'], `<tr><td>Segno</td><td>${d.sign}</td><td class="r">${d.sign === '1' ? 'negativo' : 'positivo'}</td></tr><tr><td>Esponente</td><td>${d.expBits}</td><td class="r">${expMeaning}</td></tr><tr><td>Mantissa</td><td>${d.mantBits}</td><td class="r hl">${mant}</td></tr>`)}`,
+    });
+    if (num > 0n) {
+      const move = d.e === 0 ? 'la virgola resta dov\'è' : `sposta la virgola di ${Math.abs(d.e)} ${Math.abs(d.e) === 1 ? 'posto' : 'posti'} a ${d.e > 0 ? 'destra' : 'sinistra'}`;
+      blocks.push({
+        title: 'Valore in base 2',
+        body: `<p>Il numero vale mantissa × 2 elevato all'esponente: ${move}.</p>
+          <p class="line mono">${mant} × ${power(2, d.e)} = <strong>${joinParts(srcInt, srcFrac)}</strong></p>
+          ${neg ? `<p class="line">Il bit di segno è 1: il risultato avrà il ${MINUS} davanti.</p>` : ''}`,
+      });
+    }
+  } else if (signedIn) {
     if (p.hasSign) return { error: `In complemento a 2 il segno è dato dal primo bit: togli il ${MINUS}.` };
     const t = readTwos(p.rawInt, p.rawFrac);
     ({ neg, num, den } = t);
     const typed = joinParts(p.rawInt, p.rawFrac);
-    const fill = t.padded === typed ? '' : `Il numero si completa a ${t.width} bit${p.rawFrac ? ' di parte intera' : ''} aggiungendo zeri a sinistra: <span class="mono">${t.padded}</span>. `;
+    const fill = t.padded === typed ? '' : `Il numero si completa a ${t.width} bit${p.rawFrac ? ' di parte intera' : ''} aggiungendo zeri a sinistra: ${mono(t.padded)}. `;
     source = t.padded;
     srcInt = (num / den).toString(2);
     srcFrac = fracToBase(num % den, den, 2, 1000).digits;
@@ -282,30 +435,41 @@ function solve(raw, from, to, opts = {}) {
   }
 
   const value = { neg, num, den };
-  const sourceHTML = withBase(source, from) + (signedIn ? tag : '');
+  const sourceHTML = withBase(source, from) + (floatIn ? floatTag : signedIn ? tag : '');
   const done = (display, steps, extra) => ({
     display, steps, value, source,
-    copy: display.replace('…', '').replace(MINUS, '-'),
-    twosBits: null,
+    copy: display.replace('…', '').replace(MINUS, '-').replace(/ /g, ''),
+    twosBits: null, floatBits: null,
     ...extra,
   });
 
   if (num === 0n) {
+    if (floatOut) {
+      const zero = encodeFloat(false, 0n, 1n, floatOut);
+      return done(zero.text, note('In virgola mobile lo zero si scrive con tutti i bit a 0.', `${sourceHTML} = ${withBase(zero.text, 2)}${floatTag}`), { floatBits: zero.bits });
+    }
     return done('0', note('Lo zero si scrive 0 in qualsiasi base.', `${sourceHTML} = ${withBase('0', to)}`));
   }
-  if (from === to) {
+  if (from === to && !floatIn && !floatOut) {
     return done(source, note('La base di partenza e quella di arrivo coincidono: il numero resta invariato.', `${sourceHTML} = ${sourceHTML}`));
   }
 
   const I = num / den, R = num % den;
-  const fr = expandFrac(R, den, to, opts.fracLimit || MAX_FRAC);
+  const fr = expandFrac(R, den, to, floatOut ? FLOAT[floatOut].m + 8 : opts.fracLimit || MAX_FRAC);
   const tInt = intToBase(I, to);
   const magnitude = fmt(tInt, fr);
   const hasFrac = R > 0n;
 
+  // Virgola mobile in uscita
+  let enc = null;
+  if (floatOut) {
+    enc = encodeFloat(neg, num, den, floatOut);
+    if (enc.overflow) return { error: `Il numero è troppo grande per la virgola mobile a ${floatOut} bit.` };
+  }
+
   // Complemento a 2 in uscita
   let twos = null;
-  if (neg && to === 2) {
+  if (neg && to === 2 && !floatOut) {
     const f = fr.digits.length;
     const scaled = (I << BigInt(f)) + (f ? BigInt('0b' + fr.digits) : 0n);
     if (scaled > 0n) {
@@ -319,32 +483,32 @@ function solve(raw, from, to, opts = {}) {
       twos = { n, padded: str(scaled), inverted: str(full - 1n - scaled), result: str(full - scaled) };
     }
   }
-  const display = twos ? twos.result + (fr.exact ? '' : '…') : (neg ? MINUS : '') + magnitude;
+  const display = enc ? enc.text : twos ? twos.result + (fr.exact ? '' : '…') : (neg ? MINUS : '') + magnitude;
 
-  if (neg && !signedIn) {
+  if (neg && !signedIn && !floatIn) {
     blocks.push({
       title: 'Segno',
-      body: `<p>Il numero è negativo: metti da parte il segno e lavora sul valore assoluto <span class="mono">${joinParts(srcInt, srcFrac)}</span>. ${
-        twos ? 'Alla fine il segno si esprime con il complemento a 2.' : `Alla fine rimetti il ${MINUS} davanti al risultato.`}</p>`,
+      body: `<p>Il numero è negativo: metti da parte il segno e lavora sul valore assoluto ${mono(joinParts(srcInt, srcFrac))}. ${
+        enc ? 'Alla fine il segno diventa il primo bit: 1 per i negativi.'
+          : twos ? 'Alla fine il segno si esprime con il complemento a 2.' : `Alla fine rimetti il ${MINUS} davanti al risultato.`}</p>`,
     });
   }
-  if (from !== 10) {
-    blocks.push({
-      title: `Da base ${from} a base 10`,
-      body: toDecimalStep(srcInt, srcFrac, from, fmt(String(I), expandFrac(R, den, 10, MAX_FRAC))),
-    });
-  }
-  if (to !== 10) {
-    blocks.push({
-      title: hasFrac ? `Parte intera in base ${to}` : `Da base 10 a base ${to}`,
-      body: intDivisionStep(I, to, tInt),
-    });
-    if (hasFrac) {
-      blocks.push({ title: `Parte frazionaria in base ${to}`, body: fracMultiplyStep(fr, to, magnitude) });
+  if (from !== to) {
+    if (from !== 10) {
+      blocks.push(...toDecimalBlocks(srcInt, srcFrac, from, I, R, den));
     }
-  }
-  if (POW2_BITS[from] && POW2_BITS[to] && fr.exact) {
-    blocks.push({ mark: '+', title: 'Metodo rapido', body: shortcutStep(srcInt, srcFrac, from, to) });
+    if (to !== 10) {
+      blocks.push({
+        title: hasFrac ? `Da base 10 a base ${to} · parte intera` : `Da base 10 a base ${to}`,
+        body: intDivisionStep(I, to, tInt, hasFrac),
+      });
+      if (hasFrac) {
+        blocks.push({ title: `Da base 10 a base ${to} · parte frazionaria`, body: fracMultiplyStep(fr, to, magnitude) });
+      }
+    }
+    if (POW2_BITS[from] && POW2_BITS[to] && fr.exact) {
+      blocks.push({ mark: '+', title: 'Metodo rapido', body: shortcutStep(srcInt, srcFrac, from, to) });
+    }
   }
   if (twos) {
     blocks.push({
@@ -353,13 +517,41 @@ function solve(raw, from, to, opts = {}) {
         ${table(['Operazione', 'Bit'], `<tr><td>Valore assoluto</td><td class="r">${twos.padded}</td></tr><tr><td>Bit invertiti</td><td class="r">${twos.inverted}</td></tr><tr><td>+ 1</td><td class="r hl">${twos.result}</td></tr>`)}`,
     });
   }
+  if (enc) {
+    const F = FLOAT[floatOut];
+    const norm = normalized(num, den, F.m + 6);
+    const signRow = `<tr><td>Segno</td><td>${neg ? 'negativo' : 'positivo'}</td><td class="r">${enc.sign}</td></tr>`;
+    if (enc.kind === 'normal' && norm.e >= 1 - F.bias) {
+      blocks.push({
+        title: 'Forma normalizzata',
+        body: `<p>In virgola fissa il numero è ${mono(magnitude)}. Sposta la virgola subito dopo il primo 1: ogni posto verso sinistra aumenta l'esponente di 1, ogni posto verso destra lo diminuisce.</p>
+          <p class="line mono">${magnitude} = <strong>${norm.text} × ${power(2, norm.e)}</strong></p>`,
+      });
+      const rounded = enc.exact ? 'completate con zeri' : 'arrotondate';
+      blocks.push({
+        title: 'Segno, esponente e mantissa',
+        body: `<p>All'esponente si somma il bias ${F.bias} e lo si scrive su ${F.e} bit. La mantissa sono le cifre dopo la virgola della forma normalizzata (l'1 iniziale è sottinteso), ${rounded} a ${F.m} bit.</p>
+          ${table(['Campo', 'Calcolo', 'Bit'], `${signRow}<tr><td>Esponente</td><td>${norm.e < 0 ? MINUS + -norm.e : norm.e} + ${F.bias} = ${norm.e + F.bias}${enc.e !== norm.e ? `, +1 per l'arrotondamento = ${enc.E}` : ''}</td><td class="r">${enc.expBits}</td></tr><tr><td>Mantissa</td><td>${F.m} bit dopo la virgola</td><td class="r hl">${enc.mantBits}</td></tr>`)}`,
+      });
+    } else {
+      blocks.push({
+        title: 'Numero denormalizzato',
+        body: `<p>Il numero è più piccolo di ${power(2, 1 - F.bias)}, il minimo che si può scrivere in forma normalizzata. Si usa allora l'esponente con tutti i bit a 0 e la mantissa contiene le cifre di 0,… × ${power(2, 1 - F.bias)}${enc.kind === 'zero' ? ': qui è così piccolo che viene arrotondato a zero' : ''}.</p>
+          ${table(['Campo', 'Calcolo', 'Bit'], `${signRow}<tr><td>Esponente</td><td>${enc.E ? 'minimo' : 'tutti 0'}</td><td class="r">${enc.expBits}</td></tr><tr><td>Mantissa</td><td>${F.m} bit</td><td class="r hl">${enc.mantBits}</td></tr>`)}`,
+      });
+    }
+    blocks[blocks.length - 1].body += `<p class="line">Unisci i tre campi: <strong class="mono">${enc.text}</strong></p>
+      <p class="line">In esadecimale: <span class="mono">${enc.hex}</span></p>`;
+  }
 
-  const steps = renderSteps(blocks, `${sourceHTML} = ${withBase(display, to)}${twos ? tag : ''}`);
+  const outTag = enc ? floatTag : twos ? tag : '';
+  const steps = renderSteps(blocks, `${sourceHTML} = ${withBase(display, to)}${outTag}`);
   return done(display, steps, {
-    truncated: !fr.exact,
+    truncated: !enc && !fr.exact,
     hasFrac,
     twosBits: twos ? twos.n : null,
-    wantsBits: neg && to === 2,
+    floatBits: enc ? enc.bits : null,
+    wantsBits: neg && to === 2 && !floatOut,
   });
 }
 
@@ -551,8 +743,51 @@ function longDivision(N, D, base) {
   };
 }
 
+// Lo stesso calcolo in forma normalizzata (mantissa × 2^esponente), per i numeri binari.
+function floatOpBlock(a, b, op, rn, rd) {
+  if (a.num === 0n || b.num === 0n || rn === 0n) return null;
+  const mono = s => `<span class="mono">${s}</span>`;
+  const rNeg = rn < 0n, rAbs = rNeg ? -rn : rn;
+  const na = normalized(a.num, a.den, 60), nb = normalized(b.num, b.den, 60), nr = normalized(rAbs, rd, 30);
+  const signed = (neg, s, wrap) => neg ? (wrap ? `(${MINUS}${s})` : MINUS + s) : s;
+  const num = (v, wrap) => v < 0 ? (wrap ? `(${MINUS}${-v})` : MINUS + -v) : String(v);
+  const sci = (neg, text, e) => `${signed(neg, text)} × ${power(2, e)}`;
+  // Mantissa di num/den quando l'esponente è E
+  const mant = (n, d, E) => {
+    const [x, y] = E >= 0 ? [n, d << BigInt(E)] : [n << BigInt(-E), d];
+    return fmt((x / y).toString(2), fracToBase(x % y, y, 2, 30));
+  };
+  const lines = [`Scrivi i due numeri in forma normalizzata: ${mono(sci(a.neg, na.text, na.e))} e ${mono(sci(b.neg, nb.text, nb.e))}.`];
+  let E, mr;
+  if (op === '+' || op === '-') {
+    E = Math.max(na.e, nb.e);
+    const ma = mant(a.num, a.den, E), mb = mant(b.num, b.den, E);
+    mr = mant(rAbs, rd, E);
+    lines.push(na.e === nb.e
+      ? 'Gli esponenti sono già uguali.'
+      : `Porta entrambi all'esponente più grande (${num(E)}) spostando la virgola dell'altro numero: ${mono(sci(na.e < nb.e ? a.neg : b.neg, na.e < nb.e ? ma : mb, E))}.`);
+    lines.push(`${op === '+' ? 'Somma' : 'Sottrai'} le mantisse: ${mono(`${signed(a.neg, ma)} ${OP_SIGN[op]} ${signed(b.neg, mb, true)} = ${signed(rNeg, mr)}`)}.`);
+  } else {
+    E = op === '*' ? na.e + nb.e : na.e - nb.e;
+    mr = mant(rAbs, rd, E);
+    lines.push(op === '*'
+      ? `Moltiplica le mantisse e somma gli esponenti: ${mono(`${na.text} × ${nb.text} = ${mr}`)} e ${mono(`${num(na.e)} + ${num(nb.e, true)} = ${num(E)}`)}.`
+      : `Dividi le mantisse e sottrai gli esponenti: ${mono(`${na.text} ÷ ${nb.text} = ${mr}`)} e ${mono(`${num(na.e)} ${MINUS} ${num(nb.e, true)} = ${num(E)}`)}.`);
+    if (a.neg || b.neg) lines.push(`Segni ${a.neg === b.neg ? 'concordi: il risultato è positivo' : 'discordi: il risultato è negativo'}.`);
+  }
+  lines.push(mr === '1' || mr.startsWith('1,')
+    ? `Il risultato è già normalizzato: ${mono(sci(rNeg, mr, E))}.`
+    : `Normalizza il risultato: ${mono(`${sci(rNeg, mr, E)} = ${sci(rNeg, nr.text, nr.e)}`)}.`);
+  const enc = encodeFloat(rNeg, rAbs, rd, 32);
+  if (!enc.overflow) {
+    lines.push(`In IEEE 754 a 32 bit: <strong class="mono">${enc.text}</strong>${enc.exact ? '' : ' (mantissa arrotondata)'}.`);
+  }
+  return lines.map((l, i) => `<p${i ? ' class="line"' : ''}>${l}</p>`).join('');
+}
+
 // Esegue `a op b` nella base indicata e costruisce i passaggi.
-function solveOp(rawA, rawB, base, op) {
+// opts.float — in base 2 aggiunge lo stesso calcolo in virgola mobile
+function solveOp(rawA, rawB, base, op, opts = {}) {
   const a = parseNumber(rawA, base), b = parseNumber(rawB, base);
   for (const [p, field] of [[a, 'a'], [b, 'b']]) {
     if (p.error) return { error: p.error.format ? FORMAT_MSG : invalidDigitMessage(p.error.ch, base), field };
@@ -665,6 +900,11 @@ function solveOp(rawA, rawB, base, op) {
     : [an * b.den, a.den * bn];
   if (rd < 0n) [rn, rd] = [-rn, -rd];
 
+  if (opts.float && base === 2) {
+    const body = floatOpBlock(a, b, op, rn, rd);
+    if (body) blocks.push({ title: 'In virgola mobile', body });
+  }
+
   if (base !== 10) {
     const dec = (n, d, wrap) => {
       const s = (n < 0n ? MINUS : '') + decStr(n < 0n ? -n : n, d, MAX_FRAC);
@@ -682,7 +922,7 @@ function solveOp(rawA, rawB, base, op) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub, stdWidth };
+  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub, stdWidth, encodeFloat, decodeFloat };
 }
 
 /* ---------- Interfaccia ---------- */
@@ -701,7 +941,7 @@ if (typeof document !== 'undefined') {
 
   /* Schede */
 
-  const tabs = [$('tab-convert'), $('tab-train'), $('tab-ops')];
+  const tabs = [$('tab-convert'), $('tab-ops'), $('tab-train')];
 
   function selectTab(tab) {
     if (tab.getAttribute('aria-selected') === 'true') return;
@@ -746,7 +986,8 @@ if (typeof document !== 'undefined') {
   /* Convertitore */
 
   const cInput = $('c-input'), cFrom = $('c-from'), cTo = $('c-to');
-  const cOpts = $('c-opts'), cSigned = $('c-signed'), cSignedWrap = $('c-signed-wrap');
+  const cOpts = $('c-opts'), cInFmt = $('c-in-fmt'), cInWrap = $('c-in-wrap');
+  const cOutFmt = $('c-out-fmt'), cOutWrap = $('c-out-wrap');
   const cBits = $('c-bits'), cBitsWrap = $('c-bits-wrap');
   const cOutput = $('c-output'), cError = $('c-error'), cCopy = $('c-copy');
   const cSteps = $('c-steps'), cStepsBody = $('c-steps-body');
@@ -758,15 +999,19 @@ if (typeof document !== 'undefined') {
   function convert() {
     const from = Number(cFrom.value), to = Number(cTo.value);
     const res = solve(cInput.value, from, to, {
-      signedIn: cSigned.checked,
+      signedIn: cInFmt.value === 'twos',
+      floatIn: cInFmt.value === 'float',
+      floatOut: Number(cOutFmt.value),
       bits: cBits.value === 'auto' ? 'auto' : Number(cBits.value),
     });
     const ok = res.display !== undefined;
     cResult = ok ? res : null;
 
-    cSignedWrap.hidden = from !== 2;
+    cInWrap.hidden = from !== 2;
+    cOutWrap.hidden = to !== 2;
     cBitsWrap.hidden = !res.wantsBits;
-    cOpts.hidden = cSignedWrap.hidden && cBitsWrap.hidden;
+    cOpts.hidden = cInWrap.hidden && cOutWrap.hidden && cBitsWrap.hidden;
+    cOutput.classList.toggle('long', ok && res.display.length > 24);
     cInput.classList.toggle('invalid', !!res.error && !res.wantsBits);
     cError.hidden = !res.error;
     cCopy.hidden = !ok;
@@ -781,7 +1026,7 @@ if (typeof document !== 'undefined') {
     cStepsBody.innerHTML = res.steps;
   }
 
-  for (const el of [cFrom, cTo, cSigned, cBits]) el.addEventListener('change', convert);
+  for (const el of [cFrom, cTo, cInFmt, cOutFmt, cBits]) el.addEventListener('change', convert);
   cInput.addEventListener('input', convert);
   showOnEnter(cInput, cOutput.closest('.hero'));
 
@@ -791,8 +1036,8 @@ if (typeof document !== 'undefined') {
     cTo.value = from;
     if (cResult) {
       cInput.value = cResult.copy;
-      // Un risultato in complemento a 2 va riletto come tale.
-      cSigned.checked = cResult.twosBits !== null;
+      // Il risultato va riletto nel formato in cui è stato scritto.
+      cInFmt.value = cResult.floatBits ? 'float' : cResult.twosBits !== null ? 'twos' : 'fixed';
     }
     convert();
   });
@@ -910,10 +1155,34 @@ if (typeof document !== 'undefined') {
     return { base, sol, notes, prompt: `Calcola in base ${base}`, question: sol.expr };
   }
 
+  // Virgola mobile: da base 10 a IEEE 754 a 32 bit oppure il contrario.
+  function floatExercise() {
+    const [min, max] = OP_LEVELS[tLevel.value][0];
+    const maxPow = LEVELS[tLevel.value][2];
+    const frac = tFrac.checked ? randomFraction(10, 2, maxPow) : '';
+    const dec = (tNeg.checked ? '-' : '') + joinParts(String(randomInt(min, max)), frac);
+    const encoded = solve(dec, 10, 2, { floatOut: 32 });
+    if (Math.random() < 0.5) {
+      return {
+        base: 2, sol: encoded, bits: encoded.floatBits,
+        notes: ['Scrivi i 32 bit: segno, esponente e mantissa (gli spazi sono facoltativi).'],
+        prompt: 'Scrivi in virgola mobile IEEE 754 a 32 bit', question: withBase(encoded.source, 10),
+      };
+    }
+    const sol = solve(encoded.floatBits, 2, 10, { floatIn: true });
+    return {
+      base: 10, sol, notes: ['Il numero è in virgola mobile IEEE 754 a 32 bit.'],
+      prompt: 'Converti in base 10', question: withBase(sol.source, 2),
+    };
+  }
+
+  const EXERCISES = { conv: conversionExercise, op: operationExercise, float: floatExercise };
+
   function newExercise() {
-    exercise = tKind.value === 'op' ? operationExercise() : conversionExercise();
+    exercise = EXERCISES[tKind.value]();
     tPrompt.textContent = exercise.prompt;
     tNumber.innerHTML = exercise.question;
+    tNumber.classList.toggle('long', tNumber.textContent.length > 24);
     tNote.textContent = exercise.notes.join(' ');
     tNote.hidden = !exercise.notes.length;
     tAnswer.value = '';
@@ -927,6 +1196,13 @@ if (typeof document !== 'undefined') {
   // Restituisce '' se la risposta è giusta, altrimenti il motivo dell'errore.
   function judge(answer) {
     const { base, sol } = exercise;
+    const shown = `La tua risposta: <span class="mono">${esc(clean(answer).replace('-', MINUS))}</span>`;
+    if (exercise.bits) {
+      const typed = clean(answer);
+      if (/[^01]/.test(typed)) return 'In virgola mobile si scrivono soltanto 0 e 1, senza segno né virgola.';
+      if (typed.length !== 32) return `Servono 32 bit: ne hai scritti ${typed.length}.`;
+      return typed === exercise.bits ? '' : shown;
+    }
     const p = parseNumber(answer, base);
     if (p.error) return p.error.format ? FORMAT_MSG : invalidDigitMessage(p.error.ch, base);
     let a = p;
@@ -942,7 +1218,7 @@ if (typeof document !== 'undefined') {
     } else if (same) {
       same = a.num * v.den === v.num * a.den;
     }
-    return same ? '' : `La tua risposta: <span class="mono">${esc(clean(answer).replace('-', MINUS))}</span>`;
+    return same ? '' : shown;
   }
 
   function checkAnswer() {
@@ -1009,11 +1285,15 @@ if (typeof document !== 'undefined') {
   const oSteps = $('o-steps'), oStepsBody = $('o-steps-body');
   let oResult = null;
 
+  const oFloat = $('o-float'), oFloatWrap = $('o-float-wrap');
+
   fillBases(oBase, 2);
 
   function operate() {
     const base = Number(oBase.value);
-    const res = solveOp(oA.value, oB.value, base, oOp.value);
+    const res = solveOp(oA.value, oB.value, base, oOp.value, { float: oFloat.checked });
+    oFloatWrap.hidden = base !== 2;
+    oOutput.classList.toggle('long', res.display !== undefined && res.display.length > 24);
     const ok = res.display !== undefined;
     oResult = ok ? res : null;
 
@@ -1035,6 +1315,6 @@ if (typeof document !== 'undefined') {
   for (const el of [oA, oB]) el.addEventListener('input', operate);
   showOnEnter(oA, oOutput.closest('.hero'), oB);
   showOnEnter(oB, oOutput.closest('.hero'));
-  for (const el of [oOp, oBase]) el.addEventListener('change', operate);
+  for (const el of [oOp, oBase, oFloat]) el.addEventListener('change', operate);
   wireCopy(oCopy, () => oResult.copy);
 }
