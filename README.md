@@ -9,7 +9,7 @@ Un sito per lavorare con le basi numeriche che non si limita a dare il risultato
 ### Converti
 
 1. Scrivi un numero: intero o con la virgola, positivo o negativo (ad esempio `101101`, `-45`, `12,75`).
-2. Scegli la base di partenza e quella di arrivo (da 2 a 16).
+2. Scegli la base di partenza e quella di arrivo: 2, 8, 10 o 16.
 3. Il risultato compare subito, mentre digiti.
 
 Aprendo la tendina **«Mostra i passaggi»** trovi il procedimento completo. Il pulsante con le due frecce scambia le basi, «Copia» copia il risultato.
@@ -36,9 +36,17 @@ Dalla tendina **«Esercizio»** scegli su cosa allenarti:
 - **Operazioni** — scegli la base e l'operazione (anche casuali): il sito propone un calcolo tra due numeri nella stessa base. Le divisioni hanno sempre un quoziente esatto.
 - **Virgola mobile** — il sito propone a caso di scrivere un numero decimale in IEEE 754 a 32 bit oppure di leggere 32 bit e trovarne il valore.
 
-In entrambi i casi puoi impostare la difficoltà e spuntare **«Numeri negativi»** e **«Numeri con la virgola»**: senza spunte escono solo interi positivi.
+In tutti i casi puoi impostare la difficoltà e spuntare **«Numeri negativi»** e **«Numeri con la virgola»**: senza spunte escono solo interi positivi.
 
 Scrivi la risposta e premi **«Verifica»**: se è giusta te lo conferma; se è sbagliata ti mostra quella corretta e apre la soluzione con tutti i passaggi. Un contatore tiene il conto delle risposte corrette.
+
+Nella stessa scheda trovi anche:
+
+- **Esercizi di fila** — scegli quanti esercizi fare di seguito (1, 2, 5, 10 o 20). Dopo una risposta giusta il successivo arriva da solo; dopo un errore la soluzione resta a schermo finché non premi «Prossimo esercizio». Alla fine della serie una finestra mostra il punteggio.
+- **Calcolatrice** — un tastierino in base 10 per fare i conti dei passaggi, con parentesi e potenze. Per una divisione tra interi mostra anche quoziente e resto (`47 ÷ 8` dà 5,875, quoziente 5, resto 7).
+- **Cronologia degli esercizi** — l'elenco degli esercizi fatti, con la risposta data, quella corretta e l'esito. Resta salvata nel browser (ultimi 200 esercizi) e si può svuotare.
+
+L'esercizio in corso, le impostazioni e il punteggio della serie restano dove li hai lasciati anche cambiando scheda o ricaricando la pagina. Se cambi la base di arrivo, il numero da convertire resta lo stesso.
 
 | Difficoltà | Conversioni: parte intera (in base 10) | Operazioni: operandi (in base 10) |
 | --- | --- | --- |
@@ -73,7 +81,7 @@ Per la parte frazionaria si moltiplica ripetutamente per la base: la parte inter
 
 Se la parte frazionaria non termina mai, il risultato si ferma a 12 cifre ed è seguito da «…».
 
-**Metodo rapido** — quando entrambe le basi sono potenze di 2 (2, 4, 8, 16) viene mostrata anche la scorciatoia che passa dal binario raggruppando i bit a partire dalla virgola:
+**Metodo rapido** — quando entrambe le basi sono potenze di 2 (2, 8, 16) viene mostrata anche la scorciatoia che passa dal binario raggruppando i bit a partire dalla virgola:
 
 ```
 2F in base 16  →  0010 1111  →  101 111  →  57 in base 8
@@ -148,7 +156,7 @@ Per scrivere un numero in virgola mobile:
 
 ## Limiti
 
-- Basi da 2 a 16.
+- Basi 2, 8, 10 e 16.
 - Fino a 64 cifre per numero nel convertitore, 40 nelle operazioni.
 - Le espansioni che non terminano vengono troncate a 12 cifre dopo la virgola (4 nell'allenamento).
 

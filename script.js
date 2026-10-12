@@ -1,13 +1,12 @@
 'use strict';
 
-/* ---------- Logica di conversione ---------- */
-
 const DIGITS = '0123456789ABCDEF';
 const BASE_NAMES = { 2: 'binario', 8: 'ottale', 10: 'decimale', 16: 'esadecimale' };
-const POW2_BITS = { 2: 1, 4: 2, 8: 3, 16: 4 };
-const AUTO_BITS = [8, 16, 32, 64];  // lunghezze standard per il complemento a 2
-const MAX_FRAC = 12;     // cifre dopo la virgola mostrate quando l'espansione non termina
-const EXACT_FRAC = 260;  // oltre questa lunghezza l'espansione è considerata non terminante
+const BASES = [2, 8, 10, 16];
+const POW2_BITS = { 2: 1, 8: 3, 16: 4 };
+const AUTO_BITS = [8, 16, 32, 64];
+const MAX_FRAC = 12;
+const EXACT_FRAC = 260;
 const MINUS = '−';
 const FORMAT_MSG = 'Formato non valido: usa una sola virgola e il segno − soltanto all\'inizio.';
 
@@ -27,7 +26,6 @@ function digitsToBig(str, b) {
   return value;
 }
 
-// Restituisce { empty } | { error } | il numero come frazione esatta num/den con il segno a parte.
 function parseNumber(raw, base) {
   const s = clean(raw);
   const m = /^([+-]?)([^,+-]*)(?:,([^,+-]*))?$/.exec(s);
@@ -58,7 +56,6 @@ function intToBase(value, base) {
   return out;
 }
 
-// Moltiplicazioni successive della parte frazionaria num/den (< 1) per la base.
 function fracToBase(num, den, base, max) {
   const b = BigInt(base);
   const rows = [];
@@ -73,7 +70,6 @@ function fracToBase(num, den, base, max) {
   return { digits, rows, exact: num === 0n };
 }
 
-// Espansione completa se termina, altrimenti troncata a `limit` cifre.
 function expandFrac(num, den, base, limit) {
   const full = fracToBase(num, den, base, EXACT_FRAC);
   if (full.exact) return full;
@@ -96,12 +92,10 @@ function withComma(bits, f) {
   return f ? `${bits.slice(0, -f)},${bits.slice(-f)}` : bits;
 }
 
-// Più piccola lunghezza standard (8, 16, 32, 64, poi multipli di 64) che contiene n bit.
 function stdWidth(n) {
   return AUTO_BITS.find(w => w >= n) || Math.ceil(n / 64) * 64;
 }
 
-// Numero di bit della parte intera per rappresentare −scaled/2^f in complemento a 2.
 function pickBits(scaled, f, bits) {
   const fits = n => scaled <= 1n << BigInt(n - 1 + f);
   if (bits !== 'auto') return fits(bits) ? bits : null;
@@ -110,9 +104,6 @@ function pickBits(scaled, f, bits) {
   return n;
 }
 
-// Legge una stringa di bit come numero in complemento a 2. La parte intera viene prima completata
-// con zeri a sinistra fino alla lunghezza standard, così gli zeri iniziali non cambiano il valore:
-// il segno è il primo bit della parola completa.
 function readTwos(rawInt, rawFrac) {
   const int = rawInt.padStart(stdWidth(rawInt.length), '0');
   const bits = int + rawFrac;
@@ -126,8 +117,6 @@ function readTwos(rawInt, rawFrac) {
   return { neg: true, num: full - u, den, padded, width: int.length, inverted: str(full - 1n - u), magnitude: str(full - u) };
 }
 
-/* ---------- Passaggi ---------- */
-
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -136,7 +125,6 @@ function withBase(digits, base) {
   return `${digits}<sub class="base">${base}</sub>`;
 }
 
-// Cifra con il suo valore tra parentesi quando è una lettera: "A (10)"
 function digitLabel(ch) {
   const v = DIGITS.indexOf(ch);
   return v > 9 ? `${ch} <span class="dim">(${v})</span>` : ch;
@@ -151,8 +139,6 @@ function table(head, rows) {
   return `<div class="table-wrap"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-// Blocchi per passare dalla base `base` alla base 10: uno solo per gli interi,
-// due distinti (parte intera e parte frazionaria) quando c'è la virgola.
 function toDecimalBlocks(srcInt, srcFrac, base, I, R, den) {
   const b = BigInt(base);
   const head = ['Cifra', 'Peso', 'Cifra × peso'];
@@ -219,7 +205,6 @@ function fracMultiplyStep(fr, base, magnitude) {
     <p class="line">Unisci parte intera e parte frazionaria: <strong class="mono">${magnitude}</strong></p>`;
 }
 
-// Metodo rapido tra basi potenze di 2: si passa dal binario raggruppando i bit.
 function shortcutStep(srcInt, srcFrac, from, to) {
   const kFrom = POW2_BITS[from];
   const kTo = POW2_BITS[to];
@@ -270,19 +255,14 @@ function note(text, final) {
   return `<div class="step"><p>${text}</p></div><p class="final">${final}</p>`;
 }
 
-/* ---------- Virgola mobile (IEEE 754) ---------- */
-
-// Bit di esponente (e), bit di mantissa (m) e bias dei due formati.
 const FLOAT = { 32: { e: 8, m: 23, bias: 127 }, 64: { e: 11, m: 52, bias: 1023 } };
 
-// Parte intera di log2(num/den), con num e den positivi.
 function log2floor(num, den) {
   const e = num.toString(2).length - den.toString(2).length;
   const reaches = e >= 0 ? num >= den << BigInt(e) : num << BigInt(-e) >= den;
   return reaches ? e : e - 1;
 }
 
-// Forma normalizzata 1,xxx × 2^e di num/den (positivo), con al più `max` cifre dopo la virgola.
 function normalized(num, den, max) {
   const e = log2floor(num, den);
   const [n, d] = e >= 0 ? [num, den << BigInt(e)] : [num << BigInt(-e), den];
@@ -290,7 +270,6 @@ function normalized(num, den, max) {
   return { e, text: `1${fr.digits ? `,${fr.digits}` : ''}${fr.exact ? '' : '…'}` };
 }
 
-// Divisione intera arrotondata al più vicino (a parità, al pari).
 function roundDiv(n, d) {
   let q = n / d;
   const r = n % d;
@@ -311,7 +290,6 @@ function floatFields(size, sign, E, M, extra) {
   };
 }
 
-// Codifica ±num/den in virgola mobile a 32 o 64 bit.
 function encodeFloat(neg, num, den, size) {
   const { m, bias } = FLOAT[size];
   const sign = neg ? '1' : '0';
@@ -319,7 +297,6 @@ function encodeFloat(neg, num, den, size) {
   if (num === 0n) return floatFields(size, '0', 0, 0n, { kind: 'zero', exact: true });
   let e = log2floor(num, den);
   if (e < 1 - bias) {
-    // Troppo piccolo per la forma normalizzata: esponente fisso al minimo, mantissa 0,xxx
     const r = roundDiv(num << BigInt(bias - 1 + m), den);
     if (r.q === 0n) return floatFields(size, sign, 0, 0n, { kind: 'zero', exact: false });
     if (r.q === one) return floatFields(size, sign, 1, 0n, { kind: 'normal', e: 1 - bias, exact: false });
@@ -335,7 +312,6 @@ function encodeFloat(neg, num, den, size) {
   return floatFields(size, sign, e + bias, r.q - one, { kind: 'normal', e, exact: r.exact });
 }
 
-// Legge 32 o 64 bit in virgola mobile e ne ricava il valore esatto num/den.
 function decodeFloat(bits) {
   const size = bits.length;
   const { e: eb, m, bias } = FLOAT[size];
@@ -354,14 +330,6 @@ function decodeFloat(bits) {
     : { ...f, kind: 'normal', e, num: full, den: 1n << BigInt(m - e) };
 }
 
-/*
- * Converte `raw` dalla base `from` alla base `to` e costruisce i passaggi.
- * opts.signedIn  — un numero binario in ingresso va letto in complemento a 2
- * opts.floatIn   — un numero binario in ingresso è in virgola mobile IEEE 754 (32 o 64 bit)
- * opts.floatOut  — 32 o 64: il risultato in base 2 va scritto in virgola mobile
- * opts.bits      — bit della parte intera per il complemento a 2 in uscita ('auto' o un numero)
- * opts.fracLimit — cifre dopo la virgola a cui fermarsi se l'espansione non termina
- */
 function solve(raw, from, to, opts = {}) {
   const p = parseNumber(raw, from);
   if (p.empty) return { empty: true };
@@ -460,14 +428,12 @@ function solve(raw, from, to, opts = {}) {
   const magnitude = fmt(tInt, fr);
   const hasFrac = R > 0n;
 
-  // Virgola mobile in uscita
   let enc = null;
   if (floatOut) {
     enc = encodeFloat(neg, num, den, floatOut);
     if (enc.overflow) return { error: `Il numero è troppo grande per la virgola mobile a ${floatOut} bit.` };
   }
 
-  // Complemento a 2 in uscita
   let twos = null;
   if (neg && to === 2 && !floatOut) {
     const f = fr.digits.length;
@@ -555,21 +521,17 @@ function solve(raw, from, to, opts = {}) {
   });
 }
 
-/* ---------- Operazioni tra numeri della stessa base ---------- */
-
 const OP_SIGN = { '+': '+', '-': MINUS, '*': '×', '/': '÷' };
 
 function digitValue(ch) {
   return Math.max(0, DIGITS.indexOf(ch));
 }
 
-// Intero `v` con le ultime `f` cifre dopo la virgola, senza zeri superflui.
 function scaledToStr(v, f, base) {
   const s = intToBase(v, base).padStart(f + 1, '0');
   return joinParts(s.slice(0, s.length - f), s.slice(s.length - f).replace(/0+$/, ''));
 }
 
-// Disposizione in colonna: ogni riga è { text, op, cls } con testi della stessa lunghezza.
 function colTable(rows, f) {
   const body = rows.map(r => {
     const cells = [...r.text].map((ch, i) => {
@@ -615,7 +577,6 @@ function columnAdd(x, y, base, f, width = 0) {
   };
 }
 
-// Sottrazione in colonna, con x ≥ y.
 function columnSub(x, y, base, f) {
   const W = Math.max(intToBase(x, base).length, f + 1);
   const str = v => intToBase(v, base).padStart(f + 1, '0').padStart(W, ' ');
@@ -641,10 +602,7 @@ function columnSub(x, y, base, f) {
   };
 }
 
-// Sottrazione binaria x − y sommando al minuendo il complemento a 1 o a 2 del sottraendo.
-// x e y sono interi scalati con f bit dopo la virgola.
 function complementSub(x, y, f, kind) {
-  // Si lavora su una lunghezza standard (almeno 8 bit di parte intera), anche se i numeri sono più corti.
   const F = BigInt(f);
   const intBits = stdWidth(Math.max((x >> F).toString(2).length, (y >> F).toString(2).length));
   const n = intBits + f;
@@ -709,7 +667,6 @@ function columnMul(x, y, base) {
   return { layout: colTable(layout, 0), details: table(['Calcolo', 'Prodotto parziale'], rows), total };
 }
 
-// Divisione lunga tra interi; dopo l'ultima cifra continua abbassando zeri.
 function longDivision(N, D, base) {
   const b = BigInt(base);
   const str = v => intToBase(v, base);
@@ -743,7 +700,6 @@ function longDivision(N, D, base) {
   };
 }
 
-// Lo stesso calcolo in forma normalizzata (mantissa × 2^esponente), per i numeri binari.
 function floatOpBlock(a, b, op, rn, rd) {
   if (a.num === 0n || b.num === 0n || rn === 0n) return null;
   const mono = s => `<span class="mono">${s}</span>`;
@@ -752,7 +708,6 @@ function floatOpBlock(a, b, op, rn, rd) {
   const signed = (neg, s, wrap) => neg ? (wrap ? `(${MINUS}${s})` : MINUS + s) : s;
   const num = (v, wrap) => v < 0 ? (wrap ? `(${MINUS}${-v})` : MINUS + -v) : String(v);
   const sci = (neg, text, e) => `${signed(neg, text)} × ${power(2, e)}`;
-  // Mantissa di num/den quando l'esponente è E
   const mant = (n, d, E) => {
     const [x, y] = E >= 0 ? [n, d << BigInt(E)] : [n << BigInt(-E), d];
     return fmt((x / y).toString(2), fracToBase(x % y, y, 2, 30));
@@ -785,8 +740,6 @@ function floatOpBlock(a, b, op, rn, rd) {
   return lines.map((l, i) => `<p${i ? ' class="line"' : ''}>${l}</p>`).join('');
 }
 
-// Esegue `a op b` nella base indicata e costruisce i passaggi.
-// opts.float — in base 2 aggiunge lo stesso calcolo in virgola mobile
 function solveOp(rawA, rawB, base, op, opts = {}) {
   const a = parseNumber(rawA, base), b = parseNumber(rawB, base);
   for (const [p, field] of [[a, 'a'], [b, 'b']]) {
@@ -824,7 +777,6 @@ function solveOp(rawA, rawB, base, op, opts = {}) {
       });
       blocks.push({ title: 'Colonna per colonna', body: `<p>I calcoli sono scritti con i valori decimali delle cifre.</p>${col.details}` });
     } else if (base === 2) {
-      // In binario la sottrazione si fa con i complementi: il minuendo è l'addendo positivo.
       const [m, s, mStr, sStr] = sa > 0n ? [x, y, magA, magB] : [y, x, magB, magA];
       if (a.neg || b.neg) signs(`${mStr} ${MINUS} ${sStr}`);
       blocks.push({ title: 'Sottrazione con il complemento a 2', body: complementSub(m, s, f, 2).body });
@@ -892,7 +844,6 @@ function solveOp(rawA, rawB, base, op, opts = {}) {
   const expr = `${shown(a, magA)} ${OP_SIGN[op]} ${shown(b, magB, true)}`;
   let final = `${expr} = ${withBase(display, base)}`;
 
-  // Risultato come frazione esatta
   const an = a.neg ? -a.num : a.num, bn = b.neg ? -b.num : b.num;
   let [rn, rd] = op === '+' ? [an * b.den + bn * a.den, a.den * b.den]
     : op === '-' ? [an * b.den - bn * a.den, a.den * b.den]
@@ -921,25 +872,80 @@ function solveOp(rawA, rawB, base, op, opts = {}) {
   };
 }
 
-if (typeof module !== 'undefined') {
-  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub, stdWidth, encodeFloat, decodeFloat };
+function calcEval(expr) {
+  const s = expr.replace(/\s/g, '').replace(/,/g, '.').replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+  let i = 0;
+  const fail = () => { throw new Error('espressione non valida'); };
+  const number = () => {
+    const m = /^(\d+(\.\d*)?|\.\d+)/.exec(s.slice(i));
+    if (!m) fail();
+    i += m[0].length;
+    return parseFloat(m[0]);
+  };
+  const atom = () => {
+    if (s[i] !== '(') return number();
+    i++;
+    const v = sum();
+    if (s[i] !== ')') fail();
+    i++;
+    return v;
+  };
+  const power = () => {
+    const b = atom();
+    if (s[i] !== '^') return b;
+    i++;
+    return b ** unary();
+  };
+  const unary = () => {
+    if (s[i] !== '-') return power();
+    i++;
+    return -unary();
+  };
+  const product = () => {
+    let v = unary();
+    while (s[i] === '*' || s[i] === '/') {
+      const op = s[i++];
+      const r = unary();
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  };
+  function sum() {
+    let v = product();
+    while (s[i] === '+' || s[i] === '-') {
+      const op = s[i++];
+      const r = product();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  }
+  const value = sum();
+  if (i < s.length) fail();
+  const division = /^(\d+)\/(\d+)$/.exec(s);
+  const whole = division && BigInt(division[2]) > 0n
+    ? { q: BigInt(division[1]) / BigInt(division[2]), r: BigInt(division[1]) % BigInt(division[2]) }
+    : null;
+  return { value, whole };
 }
 
-/* ---------- Interfaccia ---------- */
+function calcFormat(value) {
+  if (!Number.isFinite(value)) return 'non definito';
+  return String(Number(value.toPrecision(12))).replace('.', ',').replace('-', MINUS);
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { parseNumber, solve, readTwos, solveOp, complementSub, stdWidth, encodeFloat, decodeFloat, calcEval, calcFormat };
+}
 
 if (typeof document !== 'undefined') {
   const $ = id => document.getElementById(id);
 
   function fillBases(select, selected, withRandom) {
     let html = withRandom ? '<option value="random">Casuale</option>' : '';
-    for (let b = 2; b <= 16; b++) {
-      html += `<option value="${b}">${b}${BASE_NAMES[b] ? ` · ${BASE_NAMES[b]}` : ''}</option>`;
-    }
+    for (const b of BASES) html += `<option value="${b}">${b} · ${BASE_NAMES[b]}</option>`;
     select.innerHTML = html;
     select.value = String(selected);
   }
-
-  /* Schede */
 
   const tabs = [$('tab-convert'), $('tab-ops'), $('tab-train')];
 
@@ -947,7 +953,6 @@ if (typeof document !== 'undefined') {
     if (tab.getAttribute('aria-selected') === 'true') return;
     const index = tabs.indexOf(tab);
     const current = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
-    // Il pannello entra dal lato verso cui scorre l'indicatore delle schede.
     $(tab.getAttribute('aria-controls')).dataset.dir = index > current ? 'right' : 'left';
     tab.parentElement.style.setProperty('--i', index);
     for (const t of tabs) {
@@ -968,7 +973,6 @@ if (typeof document !== 'undefined') {
     });
   });
 
-  // Su mobile Invio chiude la tastiera (togliendo il focus) e porta in vista il risultato.
   function showOnEnter(input, target, next) {
     input.addEventListener('keydown', e => {
       if (e.key !== 'Enter') return;
@@ -978,12 +982,9 @@ if (typeof document !== 'undefined') {
         return;
       }
       input.blur();
-      // Aspetta che la tastiera si chiuda prima di scorrere.
       setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
     });
   }
-
-  /* Convertitore */
 
   const cInput = $('c-input'), cFrom = $('c-from'), cTo = $('c-to');
   const cOpts = $('c-opts'), cInFmt = $('c-in-fmt'), cInWrap = $('c-in-wrap');
@@ -1036,7 +1037,6 @@ if (typeof document !== 'undefined') {
     cTo.value = from;
     if (cResult) {
       cInput.value = cResult.copy;
-      // Il risultato va riletto nel formato in cui è stato scritto.
       cInFmt.value = cResult.floatBits ? 'float' : cResult.twosBits !== null ? 'twos' : 'fixed';
     }
     convert();
@@ -1056,27 +1056,49 @@ if (typeof document !== 'undefined') {
 
   wireCopy(cCopy, () => cResult.copy);
 
-  /* Allenamento */
-
   const tKind = $('t-kind'), tFrom = $('t-from'), tTo = $('t-to'), tBase = $('t-base'), tOp = $('t-op');
-  const tLevel = $('t-level'), tNeg = $('t-neg'), tFrac = $('t-frac');
+  const tLevel = $('t-level'), tCount = $('t-count'), tNeg = $('t-neg'), tFrac = $('t-frac');
   const tPrompt = $('t-prompt'), tNumber = $('t-number'), tNote = $('t-note'), tAnswer = $('t-answer');
-  const tCheck = $('t-check'), tFeedback = $('t-feedback');
+  const tCheck = $('t-check'), tNew = $('t-new'), tFeedback = $('t-feedback');
   const tSteps = $('t-steps'), tStepsBody = $('t-steps-body'), tScore = $('t-score');
+  const tDialog = $('t-dialog'), tHistoryList = $('t-history-list'), tHistoryCount = $('t-history-count');
 
-  const COMMON_BASES = [2, 8, 10, 16];
-  // Conversioni: [minimo, massimo, massimo esponente del denominatore 2^m della parte frazionaria]
   const LEVELS = { easy: [4, 255, 2], medium: [256, 4095, 3], hard: [4096, 65535, 4] };
-  // Operazioni: [intervallo degli operandi, intervallo del secondo fattore o del divisore, cifre dopo la virgola]
   const OP_LEVELS = { easy: [[2, 31], [2, 7], 1], medium: [[16, 255], [2, 15], 1], hard: [[128, 4095], [4, 63], 2] };
-  const TRAIN_FRAC = 4;  // cifre richieste quando la parte frazionaria non termina
-  const score = { right: 0, total: 0 };
+  const TRAIN_FRAC = 4;
+  const HISTORY_MAX = 200;
+  const STORE = 'basi.allenamento', HISTORY_STORE = 'basi.cronologia';
+  const SETTINGS = { kind: tKind, from: tFrom, to: tTo, base: tBase, op: tOp, level: tLevel, count: tCount };
+
   let exercise = null;
+  let series = { len: 1, done: 0, right: 0 };
+  let history = [];
+  let nextTimer = 0;
   let prev = { from: 'random', to: '10' };
 
   fillBases(tFrom, 'random', true);
   fillBases(tTo, 10);
   fillBases(tBase, 'random', true);
+
+  function load(key, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function save(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {}
+  }
+
+  function persist() {
+    const settings = { neg: tNeg.checked, frac: tFrac.checked };
+    for (const [name, el] of Object.entries(SETTINGS)) settings[name] = el.value;
+    save(STORE, { settings, series, spec: exercise && !exercise.done ? exercise.spec : null });
+  }
 
   function randomInt(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
@@ -1086,14 +1108,12 @@ if (typeof document !== 'undefined') {
     return list[randomInt(0, list.length - 1)];
   }
 
-  // Da 1 a maxLen cifre casuali, con l'ultima diversa da zero.
   function randomDigits(base, maxLen) {
     let digits = '';
     for (let i = randomInt(1, maxLen); i > 1; i--) digits += DIGITS[randomInt(0, base - 1)];
     return digits + DIGITS[randomInt(1, base - 1)];
   }
 
-  // Parte frazionaria nella base di partenza; quando possibile termina anche in quella di arrivo.
   function randomFraction(from, to, maxPow) {
     const m = randomInt(1, maxPow);
     const k = BigInt(2 * randomInt(0, 2 ** (m - 1) - 1) + 1);
@@ -1103,15 +1123,13 @@ if (typeof document !== 'undefined') {
     return randomDigits(from, 2);
   }
 
-  function conversionExercise() {
+  function conversionSpec() {
     const to = Number(tTo.value);
-    const from = tFrom.value === 'random' ? pick(COMMON_BASES.filter(b => b !== to)) : Number(tFrom.value);
+    const from = tFrom.value === 'random' ? pick(BASES.filter(b => b !== to)) : Number(tFrom.value);
     const [min, max, maxPow] = LEVELS[tLevel.value];
     const neg = tNeg.checked;
     const frac = tFrac.checked ? randomFraction(from, to, maxPow) : '';
     let raw = joinParts(intToBase(BigInt(randomInt(min, max)), from), frac);
-
-    // Un negativo in base 2 viene proposto già in complemento a 2.
     const signedIn = neg && from === 2;
     if (signedIn) {
       const f = frac.length;
@@ -1121,66 +1139,80 @@ if (typeof document !== 'undefined') {
     } else if (neg) {
       raw = '-' + raw;
     }
-
-    const sol = solve(raw, from, to, { signedIn, bits: 'auto', fracLimit: TRAIN_FRAC });
-    const notes = [];
-    if (signedIn) notes.push('Il numero è scritto in complemento a 2.');
-    if (sol.twosBits) notes.push(`Rispondi in complemento a 2 su ${sol.twosBits} bit${sol.hasFrac ? ' di parte intera' : ''}.`);
-    if (sol.truncated) notes.push(`Fermati a ${TRAIN_FRAC} cifre dopo la virgola.`);
-    return { base: to, sol, notes, prompt: `Converti in base ${to}`, question: withBase(sol.source, from) };
+    return { kind: 'conv', from, to, raw, signedIn };
   }
 
-  function operationExercise() {
-    const base = tBase.value === 'random' ? pick(COMMON_BASES) : Number(tBase.value);
+  function operationSpec() {
+    const base = tBase.value === 'random' ? pick(BASES) : Number(tBase.value);
     const op = tOp.value === 'random' ? pick(['+', '-', '*', '/']) : tOp.value;
     const [big, small, fracLen] = OP_LEVELS[tLevel.value];
     const operand = ([min, max], neg) => (neg ? '-' : '')
       + joinParts(intToBase(BigInt(randomInt(min, max)), base), tFrac.checked ? randomDigits(base, fracLen) : '');
-
-    // Con i negativi attivi almeno uno dei due numeri è negativo.
     let negA = false, negB = false;
     if (tNeg.checked) {
       negA = Math.random() < 0.5;
       negB = !negA || Math.random() < 0.5;
     }
-
     let a = operand(big, negA);
     const b = operand(op === '+' || op === '-' ? big : small, negB);
-    // Divisione: il dividendo è un prodotto, così il quoziente è esatto.
     if (op === '/') a = solveOp(operand(small, negA !== negB), b, base, '*').copy;
-
-    const sol = solveOp(a, b, base, op);
-    // L'avviso non dipende dal segno del risultato, per non suggerire la risposta.
-    const notes = tNeg.checked || op === '-' ? [`Se il risultato è negativo scrivilo con il segno ${MINUS}.`] : [];
-    return { base, sol, notes, prompt: `Calcola in base ${base}`, question: sol.expr };
+    return { kind: 'op', base, op, a, b, sign: tNeg.checked || op === '-' };
   }
 
-  // Virgola mobile: da base 10 a IEEE 754 a 32 bit oppure il contrario.
-  function floatExercise() {
+  function floatSpec() {
     const [min, max] = OP_LEVELS[tLevel.value][0];
-    const maxPow = LEVELS[tLevel.value][2];
-    const frac = tFrac.checked ? randomFraction(10, 2, maxPow) : '';
+    const frac = tFrac.checked ? randomFraction(10, 2, LEVELS[tLevel.value][2]) : '';
     const dec = (tNeg.checked ? '-' : '') + joinParts(String(randomInt(min, max)), frac);
-    const encoded = solve(dec, 10, 2, { floatOut: 32 });
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.5) return { kind: 'float', encode: true, raw: dec };
+    return { kind: 'float', encode: false, raw: solve(dec, 10, 2, { floatOut: 32 }).floatBits };
+  }
+
+  const SPECS = { conv: conversionSpec, op: operationSpec, float: floatSpec };
+
+  function build(spec) {
+    if (spec.kind === 'op') {
+      const sol = solveOp(spec.a, spec.b, spec.base, spec.op);
+      const notes = spec.sign ? [`Se il risultato è negativo scrivilo con il segno ${MINUS}.`] : [];
+      return { spec, base: spec.base, sol, notes, prompt: `Calcola in base ${spec.base}`, question: sol.expr };
+    }
+    if (spec.kind === 'float' && spec.encode) {
+      const sol = solve(spec.raw, 10, 2, { floatOut: 32 });
       return {
-        base: 2, sol: encoded, bits: encoded.floatBits,
+        spec, base: 2, sol, bits: sol.floatBits,
         notes: ['Scrivi i 32 bit: segno, esponente e mantissa (gli spazi sono facoltativi).'],
-        prompt: 'Scrivi in virgola mobile IEEE 754 a 32 bit', question: withBase(encoded.source, 10),
+        prompt: 'Scrivi in virgola mobile IEEE 754 a 32 bit', question: withBase(sol.source, 10),
       };
     }
-    const sol = solve(encoded.floatBits, 2, 10, { floatIn: true });
-    return {
-      base: 10, sol, notes: ['Il numero è in virgola mobile IEEE 754 a 32 bit.'],
-      prompt: 'Converti in base 10', question: withBase(sol.source, 2),
-    };
+    if (spec.kind === 'float') {
+      const sol = solve(spec.raw, 2, 10, { floatIn: true });
+      return {
+        spec, base: 10, sol, notes: ['Il numero è in virgola mobile IEEE 754 a 32 bit.'],
+        prompt: 'Converti in base 10', question: withBase(sol.source, 2),
+      };
+    }
+    const sol = solve(spec.raw, spec.from, spec.to, { signedIn: spec.signedIn, bits: 'auto', fracLimit: TRAIN_FRAC });
+    const notes = [];
+    if (spec.signedIn) notes.push('Il numero è scritto in complemento a 2.');
+    if (sol.twosBits) notes.push(`Rispondi in complemento a 2 su ${sol.twosBits} bit${sol.hasFrac ? ' di parte intera' : ''}.`);
+    if (sol.truncated) notes.push(`Fermati a ${TRAIN_FRAC} cifre dopo la virgola.`);
+    return { spec, base: spec.to, sol, notes, prompt: `Converti in base ${spec.to}`, question: withBase(sol.source, spec.from) };
   }
 
-  const EXERCISES = { conv: conversionExercise, op: operationExercise, float: floatExercise };
+  function inSeries() {
+    return series.len > 1;
+  }
 
-  function newExercise() {
-    exercise = EXERCISES[tKind.value]();
-    tPrompt.textContent = exercise.prompt;
+  function seriesOver() {
+    return inSeries() && series.done >= series.len;
+  }
+
+  function renderScore() {
+    tScore.textContent = `${series.right} / ${inSeries() ? series.len : series.done}`;
+  }
+
+  function render() {
+    const step = inSeries() ? `Esercizio ${Math.min(series.done + 1, series.len)} di ${series.len} · ` : '';
+    tPrompt.textContent = step + exercise.prompt;
     tNumber.innerHTML = exercise.question;
     tNumber.classList.toggle('long', tNumber.textContent.length > 24);
     tNote.textContent = exercise.notes.join(' ');
@@ -1188,12 +1220,31 @@ if (typeof document !== 'undefined') {
     tAnswer.value = '';
     tAnswer.disabled = false;
     tCheck.disabled = false;
+    tCheck.textContent = 'Verifica';
     tFeedback.hidden = true;
     tSteps.hidden = true;
     tSteps.open = false;
+    renderScore();
+    persist();
   }
 
-  // Restituisce '' se la risposta è giusta, altrimenti il motivo dell'errore.
+  function fresh() {
+    clearTimeout(nextTimer);
+    exercise = build(SPECS[tKind.value]());
+    render();
+  }
+
+  function next() {
+    clearTimeout(nextTimer);
+    if (seriesOver()) series = { len: series.len, done: 0, right: 0 };
+    fresh();
+  }
+
+  function replaceCurrent() {
+    if (exercise && exercise.done) next();
+    else fresh();
+  }
+
   function judge(answer) {
     const { base, sol } = exercise;
     const shown = `La tua risposta: <span class="mono">${esc(clean(answer).replace('-', MINUS))}</span>`;
@@ -1221,8 +1272,34 @@ if (typeof document !== 'undefined') {
     return same ? '' : shown;
   }
 
+  function renderHistory() {
+    tHistoryCount.textContent = history.length;
+    $('t-history-clear').hidden = !history.length;
+    tHistoryList.innerHTML = history.length ? history.map(e => `
+      <li class="history-item ${e.ok ? 'ok' : 'bad'}">
+        <span class="badge">${e.ok ? 'Giusta' : 'Sbagliata'}</span>
+        <div class="history-main">
+          <span class="history-prompt">${esc(e.prompt)}</span>
+          <span class="mono">${e.question}</span>
+        </div>
+        <div class="history-answers">
+          <span>Tua risposta: <span class="mono">${esc(e.answer)}</span></span>
+          <span>Risposta corretta: <strong class="mono">${e.correct}</strong></span>
+        </div>
+      </li>`).join('') : '<li class="history-empty">Non hai ancora fatto esercizi.</li>';
+  }
+
+  function openDialog() {
+    const { right, len } = series;
+    $('t-dialog-score').textContent = `${right} / ${len}`;
+    $('t-dialog-text').textContent = right === len
+      ? 'Tutte le risposte sono corrette. Ottimo lavoro!'
+      : `Hai risposto correttamente a ${right} ${right === 1 ? 'esercizio' : 'esercizi'} su ${len}.`;
+    if (tDialog.showModal) tDialog.showModal();
+    else tDialog.setAttribute('open', '');
+  }
+
   function checkAnswer() {
-    if (!exercise || exercise.done) return;
     if (parseNumber(tAnswer.value, exercise.base).empty) {
       tAnswer.focus();
       return;
@@ -1230,55 +1307,167 @@ if (typeof document !== 'undefined') {
     const { base, sol, question } = exercise;
     const why = judge(tAnswer.value);
     const correct = !why;
+    const solution = withBase(sol.display, base);
 
     exercise.done = true;
-    score.total++;
-    if (correct) score.right++;
+    series.done++;
+    if (correct) series.right++;
+    history.unshift({
+      prompt: exercise.prompt, question, correct: solution, ok: correct,
+      answer: clean(tAnswer.value).replace('-', MINUS),
+    });
+    history.length = Math.min(history.length, HISTORY_MAX);
+    save(HISTORY_STORE, history);
+    renderHistory();
+    renderScore();
+    persist();
 
     tAnswer.disabled = true;
-    tCheck.disabled = true;
     tFeedback.hidden = false;
     tFeedback.className = `feedback ${correct ? 'ok' : 'bad'}`;
     tFeedback.innerHTML = correct
-      ? `<strong>Corretto!</strong><span class="mono">${question} = ${withBase(sol.display, base)}</span>`
-      : `<strong>Non è corretto.</strong><span>${why}</span><span>Risposta giusta: <strong class="mono">${withBase(sol.display, base)}</strong></span>`;
-
+      ? `<strong>Corretto!</strong><span class="mono">${question} = ${solution}</span>`
+      : `<strong>Non è corretto.</strong><span>${why}</span><span>Risposta giusta: <strong class="mono">${solution}</strong></span>`;
     tStepsBody.innerHTML = sol.steps;
     tSteps.hidden = false;
     tSteps.open = !correct;
-    tScore.textContent = `${score.right} / ${score.total}`;
-    // Toglie il focus dal campo (su mobile chiude la tastiera) e porta in vista l'esito.
     tAnswer.blur();
-    $('t-new').focus({ preventScroll: true });
+
+    if (!inSeries()) {
+      tCheck.disabled = true;
+      tNew.focus({ preventScroll: true });
+    } else {
+      tCheck.textContent = seriesOver() ? 'Nuova serie' : 'Prossimo esercizio';
+      tCheck.focus({ preventScroll: true });
+    }
+    if (seriesOver()) {
+      openDialog();
+      return;
+    }
     setTimeout(() => tFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
+    if (inSeries() && correct) nextTimer = setTimeout(next, 1800);
   }
 
-  // Le due basi non possono coincidere: se succede, l'altra prende il valore precedente.
-  function onBaseChange(changed, other, prevChanged) {
+  function fixBases(changed, other, prevChanged) {
     if (changed.value === other.value) {
       other.value = prevChanged !== 'random' ? prevChanged : (changed.value === '10' ? '2' : '10');
     }
     prev = { from: tFrom.value, to: tTo.value };
-    newExercise();
   }
 
-  function onKindChange() {
+  function showKindFields() {
     for (const el of document.querySelectorAll('#panel-train [data-kind]')) {
       el.hidden = el.dataset.kind !== tKind.value;
     }
-    newExercise();
   }
 
-  tKind.addEventListener('change', onKindChange);
-  tFrom.addEventListener('change', () => onBaseChange(tFrom, tTo, prev.from));
-  tTo.addEventListener('change', () => onBaseChange(tTo, tFrom, prev.to));
-  for (const el of [tBase, tOp, tLevel, tNeg, tFrac]) el.addEventListener('change', newExercise);
-  $('t-new').addEventListener('click', () => { newExercise(); tAnswer.focus(); });
-  $('t-form').addEventListener('submit', e => { e.preventDefault(); checkAnswer(); });
+  tKind.addEventListener('change', () => {
+    showKindFields();
+    replaceCurrent();
+  });
+  tFrom.addEventListener('change', () => {
+    fixBases(tFrom, tTo, prev.from);
+    replaceCurrent();
+  });
+  tTo.addEventListener('change', () => {
+    fixBases(tTo, tFrom, prev.to);
+    const to = Number(tTo.value);
+    const spec = exercise.spec;
+    const keep = !exercise.done && spec.kind === 'conv' && spec.from !== to
+      && (tFrom.value === 'random' || Number(tFrom.value) === spec.from);
+    if (!keep) {
+      replaceCurrent();
+      return;
+    }
+    exercise = build({ ...spec, to });
+    render();
+  });
+  for (const el of [tBase, tOp, tLevel, tNeg, tFrac]) el.addEventListener('change', replaceCurrent);
+  tCount.addEventListener('change', () => {
+    series = { len: Number(tCount.value), done: 0, right: 0 };
+    fresh();
+  });
+  tNew.addEventListener('click', () => {
+    replaceCurrent();
+    tAnswer.focus();
+  });
+  $('t-form').addEventListener('submit', e => {
+    e.preventDefault();
+    if (exercise.done) {
+      next();
+      tAnswer.focus();
+    } else {
+      checkAnswer();
+    }
+  });
+  $('t-dialog-again').addEventListener('click', () => {
+    tDialog.close();
+    next();
+  });
+  $('t-dialog-close').addEventListener('click', () => tDialog.close());
+  $('t-history-clear').addEventListener('click', () => {
+    history = [];
+    save(HISTORY_STORE, history);
+    renderHistory();
+  });
 
-  onKindChange();
+  (function restore() {
+    const saved = load(STORE, {});
+    const settings = saved.settings || {};
+    for (const [name, el] of Object.entries(SETTINGS)) {
+      if ([...el.options].some(o => o.value === settings[name])) el.value = settings[name];
+    }
+    tNeg.checked = !!settings.neg;
+    tFrac.checked = !!settings.frac;
+    if (tFrom.value === tTo.value) tFrom.value = 'random';
+    prev = { from: tFrom.value, to: tTo.value };
+    showKindFields();
 
-  /* Operazioni */
+    const len = Number(tCount.value);
+    const s = saved.series || {};
+    series = s.len === len && Number.isInteger(s.done) && Number.isInteger(s.right) && s.right <= s.done && (len === 1 || s.done < len)
+      ? { len, done: s.done, right: s.right }
+      : { len, done: 0, right: 0 };
+
+    const stored = load(HISTORY_STORE, []);
+    history = Array.isArray(stored) ? stored.filter(e => e && typeof e.question === 'string').slice(0, HISTORY_MAX) : [];
+    renderHistory();
+
+    try {
+      const restored = saved.spec && saved.spec.kind === tKind.value ? build(saved.spec) : null;
+      if (!restored || restored.sol.display === undefined) throw new Error('nessun esercizio salvato');
+      exercise = restored;
+      render();
+    } catch {
+      fresh();
+    }
+  })();
+
+  const kInput = $('k-input'), kResult = $('k-result');
+
+  function calculate() {
+    const expr = kInput.value.trim();
+    if (!expr) {
+      kResult.textContent = '';
+      return;
+    }
+    try {
+      const { value, whole } = calcEval(expr);
+      kResult.textContent = `= ${calcFormat(value)}${whole && whole.r > 0n ? `   (quoziente ${whole.q}, resto ${whole.r})` : ''}`;
+    } catch {
+      kResult.textContent = '…';
+    }
+  }
+
+  kInput.addEventListener('input', calculate);
+  $('k-keys').addEventListener('click', e => {
+    const key = e.target.closest('button');
+    if (!key) return;
+    if (key.dataset.key === 'clear') kInput.value = '';
+    else if (key.dataset.key === 'back') kInput.value = kInput.value.slice(0, -1);
+    else kInput.value += key.dataset.key;
+    calculate();
+  });
 
   const oA = $('o-a'), oB = $('o-b'), oOp = $('o-op'), oBase = $('o-base');
   const oOutput = $('o-output'), oError = $('o-error'), oCopy = $('o-copy');

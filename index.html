@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Basi — Convertitore di basi numeriche</title>
-  <meta name="description" content="Converti numeri tra basi diverse (binario, ottale, decimale, esadecimale e tutte le basi da 2 a 16) con i passaggi spiegati, e allenati con esercizi casuali.">
+  <meta name="description" content="Converti numeri tra basi diverse (binario, ottale, decimale, esadecimale) con i passaggi spiegati, e allenati con esercizi casuali.">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b4cca'/%3E%3Ctext x='16' y='22' font-family='Helvetica,Arial,sans-serif' font-weight='700' font-size='18' text-anchor='middle' fill='%23fff'%3Eb%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
@@ -24,7 +24,6 @@
       </div>
     </div>
 
-    <!-- Convertitore -->
     <section class="panel" id="panel-convert" role="tabpanel" aria-labelledby="tab-convert">
       <div class="card bar">
         <label class="field wide">
@@ -92,7 +91,6 @@
       </details>
     </section>
 
-    <!-- Allenamento -->
     <section class="panel" id="panel-train" role="tabpanel" aria-labelledby="tab-train" hidden>
       <div class="card bar train-bar">
         <label class="field kind">
@@ -139,6 +137,18 @@
             </select>
           </span>
         </label>
+        <label class="field">
+          <span class="label">Esercizi di fila</span>
+          <span class="select">
+            <select id="t-count">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+            </select>
+          </span>
+        </label>
         <div class="field stat">
           <span class="label">Corrette</span>
           <span id="t-score" class="stat-value mono">0 / 0</span>
@@ -180,9 +190,43 @@
         <summary>Soluzione con i passaggi</summary>
         <div class="steps-body" id="t-steps-body"></div>
       </details>
+
+      <details class="steps">
+        <summary>Calcolatrice</summary>
+        <div class="calc">
+          <div class="calc-screen">
+            <input id="k-input" class="input mono" type="text" inputmode="none" autocomplete="off" spellcheck="false" maxlength="60" placeholder="es. 47 ÷ 8" aria-label="Espressione">
+            <output id="k-result" class="mono" aria-live="polite"></output>
+          </div>
+          <div id="k-keys" class="calc-keys">
+            <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" class="op" data-key="÷">÷</button><button type="button" class="op" data-key="clear" aria-label="Cancella tutto">C</button>
+            <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" class="op" data-key="×">×</button><button type="button" class="op" data-key="back" aria-label="Cancella l'ultimo carattere">⌫</button>
+            <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" class="op" data-key="−">−</button><button type="button" class="op" data-key="(">(</button>
+            <button type="button" data-key="0">0</button><button type="button" data-key=",">,</button><button type="button" class="op" data-key="^" aria-label="Elevato a">^</button><button type="button" class="op" data-key="+">+</button><button type="button" class="op" data-key=")">)</button>
+          </div>
+          <p class="calc-hint">Lavora in base 10. Con una divisione tra interi mostra anche quoziente e resto; <span class="mono">^</span> è l'elevamento a potenza.</p>
+        </div>
+      </details>
+
+      <details class="steps">
+        <summary><span>Cronologia degli esercizi (<span id="t-history-count">0</span>)</span></summary>
+        <div class="history">
+          <ul id="t-history-list" class="history-list"></ul>
+          <button id="t-history-clear" class="btn" type="button" hidden>Svuota la cronologia</button>
+        </div>
+      </details>
+
+      <dialog id="t-dialog" class="dialog" aria-labelledby="t-dialog-title">
+        <h2 id="t-dialog-title">Serie completata</h2>
+        <p id="t-dialog-score" class="dialog-score mono"></p>
+        <p id="t-dialog-text"></p>
+        <div class="actions">
+          <button id="t-dialog-again" class="btn primary" type="button">Nuova serie</button>
+          <button id="t-dialog-close" class="btn" type="button">Chiudi</button>
+        </div>
+      </dialog>
     </section>
 
-    <!-- Operazioni -->
     <section class="panel" id="panel-ops" role="tabpanel" aria-labelledby="tab-ops" hidden>
       <div class="card bar ops-bar">
         <label class="field first">
@@ -231,7 +275,7 @@
       </details>
     </section>
 
-    <footer class="foot">Numeri interi e con la virgola, positivi e negativi · basi da 2 a 16</footer>
+    <footer class="foot">Numeri interi e con la virgola, positivi e negativi · basi 2, 8, 10 e 16</footer>
   </main>
 
   <script src="script.js"></script>
